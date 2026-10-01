@@ -1,0 +1,840 @@
+---
+// JevNER - Fullstack Student Survey Moderation & NER/PER Engine
+import '../styles/index.css';
+---
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JevNER • Moderador & Anonimizador de Encuestas Estudiantiles</title>
+  <meta name="description" content="Aplicación fullstack con TypeSafe Jev para NER, PER, detección de insultos y anonimización de encuestas universitarias antes de su publicación." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-icon">J</div>
+        <div class="brand-text">
+          <h1>JevNER • Anonimizador de Encuestas</h1>
+          <p>NER, PER y Moderación Inteligente con TypeSafe Jev System One</p>
+        </div>
+      </div>
+      <div class="header-status-badge" id="api-status-badge">
+        <div class="pulse-dot" id="status-dot"></div>
+        <span id="api-status-text">Conectando con Backend...</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav" aria-label="Navegación principal">
+      <button class="tab-btn active" id="tab-btn-process" data-target="panel-process">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        1. Encuesta & Procesamiento
+      </button>
+      <button class="tab-btn" id="tab-btn-results" data-target="panel-results">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+        2. Tabla de Moderación & NER
+      </button>
+      <button class="tab-btn" id="tab-btn-playground" data-target="panel-playground">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        3. Probar Comentario (Playground)
+      </button>
+      <button class="tab-btn" id="tab-btn-export" data-target="panel-export">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        4. Exportar Dataset Limpio
+      </button>
+    </nav>
+
+    <!-- PANEL 1: Cargar y Procesar -->
+    <section id="panel-process" class="tab-panel">
+      <div class="grid-2">
+        <!-- Upload Card -->
+        <div class="glass-card">
+          <h2 class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Cargar Encuesta (.csv o .xlsx)
+          </h2>
+          <p class="card-desc">Suba la planilla de respuestas de la encuesta estudiantil o use el conjunto de ejemplo.</p>
+          
+          <div class="dropzone" id="file-dropzone">
+            <input type="file" id="file-input" accept=".csv, .xlsx, .xls" />
+            <div class="dropzone-icon">📁</div>
+            <h3 id="dropzone-text">Arrastre aquí su archivo .csv o .xlsx</h3>
+            <p>o haga clic para seleccionar desde su equipo</p>
+          </div>
+
+          <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-outline" id="btn-load-sample" style="width: 100%;">
+              ⚡ Cargar Encuesta de Ejemplo (10 Respuestas Reales)
+            </button>
+          </div>
+
+          <div id="file-loaded-info" style="display: none; margin-top: 16px; padding: 12px 16px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong id="info-filename" style="color: #34d399;">archivo.xlsx</strong>
+                <div style="font-size: 0.8rem; color: var(--text-muted);"><span id="info-total-rows">0</span> filas detectadas</div>
+              </div>
+              <span class="badge-pill true" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);">Listo</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configuration Card -->
+        <div class="glass-card">
+          <h2 class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Parámetros de Anonimización & Jev
+          </h2>
+          <p class="card-desc">Seleccione la columna de comentarios y configure las reglas de anonimización.</p>
+
+          <div class="form-group">
+            <label class="form-label" for="select-text-column">Columna de Respuestas / Comentarios:</label>
+            <select id="select-text-column" class="form-select" disabled>
+              <option value="">Cargue un archivo primero...</option>
+            </select>
+          </div>
+
+          <label class="checkbox-row" for="chk-mask-per">
+            <input type="checkbox" id="chk-mask-per" checked />
+            <div class="checkbox-info">
+              <span class="checkbox-title">Anonimizar Nombres de Personas (PER)</span>
+              <span class="checkbox-desc">Reemplaza nombres y apellidos de profesores y alumnos por [DOCENTE_N]</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row" for="chk-mask-chair">
+            <input type="checkbox" id="chk-mask-chair" checked />
+            <div class="checkbox-info">
+              <span class="checkbox-title">Anonimizar Cátedras & Materias</span>
+              <span class="checkbox-desc">Oculta nombres de asignaturas específicas por [CÁTEDRA_N]</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row" for="chk-mask-insults">
+            <input type="checkbox" id="chk-mask-insults" checked />
+            <div class="checkbox-info">
+              <span class="checkbox-title">Censurar Insultos & Lenguaje Ofensivo</span>
+              <span class="checkbox-desc">Sustituye agresiones e improperios por [LENGUAJE INAPROPIADO]</span>
+            </div>
+          </label>
+
+          <div style="margin-top: 20px;">
+            <button class="btn btn-primary" id="btn-start-analysis" style="width: 100%;" disabled>
+              <span id="btn-analysis-icon">🚀</span>
+              <span id="btn-analysis-text">Ejecutar Análisis con TypeSafe Jev</span>
+            </button>
+          </div>
+
+          <div id="analysis-progress-container" style="display: none; margin-top: 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+              <span id="progress-step-text">Procesando con Jev System One...</span>
+              <span id="progress-percent-text">0%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview of uploaded raw data -->
+      <div class="glass-card" id="preview-raw-card" style="display: none;">
+        <h3 class="card-title">Vista Previa del Archivo Original (Primeras 5 filas)</h3>
+        <p class="card-desc">Verifique que las columnas coincidan antes de ejecutar la moderación.</p>
+        <div class="table-responsive">
+          <table class="moderation-table" id="table-raw-preview">
+            <thead id="raw-preview-thead"></thead>
+            <tbody id="raw-preview-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 2: Resultados & Moderación -->
+    <section id="panel-results" class="tab-panel" style="display: none;">
+      <!-- KPI Stats -->
+      <div class="grid-kpi">
+        <div class="kpi-card kpi-info">
+          <div class="kpi-label">Total Analizados</div>
+          <div class="kpi-value" id="kpi-total">0</div>
+          <div class="kpi-sub">Comentarios en la encuesta</div>
+        </div>
+        <div class="kpi-card kpi-warning">
+          <div class="kpi-label">Nombres (PER)</div>
+          <div class="kpi-value" id="kpi-per">0</div>
+          <div class="kpi-sub">Docentes o personas detectadas</div>
+        </div>
+        <div class="kpi-card kpi-purple">
+          <div class="kpi-label">Cátedras / Materias</div>
+          <div class="kpi-value" id="kpi-chairs">0</div>
+          <div class="kpi-sub">Menciones de materias específicas</div>
+        </div>
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-label">Insultos / Agresiones</div>
+          <div class="kpi-value" id="kpi-insults">0</div>
+          <div class="kpi-sub">Comentarios ofensivos detectados</div>
+        </div>
+        <div class="kpi-card kpi-success">
+          <div class="kpi-label">Aprobados Directos</div>
+          <div class="kpi-value" id="kpi-approved">0</div>
+          <div class="kpi-sub">Listos para publicar sin cambios</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Toxicidad Promedio</div>
+          <div class="kpi-value" id="kpi-toxicity">1.0</div>
+          <div class="kpi-sub">Escala Jev 1 a 5</div>
+        </div>
+      </div>
+
+      <!-- Main Moderation Table Card -->
+      <div class="glass-card">
+        <div class="filter-bar">
+          <div class="filter-buttons">
+            <button class="filter-pill active" data-filter="all">Todos (<span id="filter-cnt-all">0</span>)</button>
+            <button class="filter-pill" data-filter="per">Docentes / PER (<span id="filter-cnt-per">0</span>)</button>
+            <button class="filter-pill" data-filter="chair">Cátedras (<span id="filter-cnt-chair">0</span>)</button>
+            <button class="filter-pill" data-filter="insult">Insultos (<span id="filter-cnt-insult">0</span>)</button>
+            <button class="filter-pill" data-filter="approved">Aprobados (<span id="filter-cnt-approved">0</span>)</button>
+            <button class="filter-pill" data-filter="discard">Descartar / Severos (<span id="filter-cnt-discard">0</span>)</button>
+          </div>
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" class="form-input" placeholder="Buscar en respuestas..." />
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="moderation-table" id="results-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th style="min-width: 280px;">Comentario Original (Entidades Resaltadas)</th>
+                <th style="min-width: 280px;">Versión Anonimizada para Publicación</th>
+                <th>Decisión Jev (PER / Cátedra / Insulto)</th>
+                <th>Toxicidad</th>
+                <th>Tema</th>
+                <th>Acción / Publicar</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody">
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 40px;">
+                  No hay datos procesados aún. Cargue una encuesta en la pestaña "Encuesta & Procesamiento".
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 3: Playground / Prueba Individual -->
+    <section id="panel-playground" class="tab-panel" style="display: none;">
+      <div class="glass-card">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Playground de Evaluación Inmediata Jev
+        </h2>
+        <p class="card-desc">Pruebe comentarios de alumnos en tiempo real para calibrar cómo responde el modelo System One.</p>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); align-self: center;">Ejemplos rápidos:</span>
+          <button class="filter-pill sample-prompt-btn" data-text="El profesor Juan Perez de Algoritmos es un desastre y un idiota total.">Insulto a docente</button>
+          <button class="filter-pill sample-prompt-btn" data-text="Excelente la cursada de Sistemas Operativos, los prácticos fueron muy claros.">Elogio con cátedra</button>
+          <button class="filter-pill sample-prompt-btn" data-text="La ayudante Florencia Fernández tiene muy buena onda en las consultas.">Mención de ayudante (PER)</button>
+          <button class="filter-pill sample-prompt-btn" data-text="El parcial fue excesivamente largo y no alcanzó el tiempo estipulado.">Queja constructiva</button>
+        </div>
+
+        <div class="form-group">
+          <textarea id="single-text-input" class="form-textarea" rows="3" placeholder="Escriba o pegue una respuesta de alumno aquí..."></textarea>
+        </div>
+
+        <button class="btn btn-primary" id="btn-run-single">
+          <span>⚡ Analizar con TypeSafe Jev (100ms)</span>
+        </button>
+
+        <div id="single-result-box" style="display: none; margin-top: 24px;">
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Texto Original con Entidades:</label>
+              <div id="single-highlighted" style="padding: 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; min-height: 80px; line-height: 1.6;"></div>
+            </div>
+            <div>
+              <label class="form-label">Resultado Anonimizado para Publicación:</label>
+              <div id="single-anonymized" class="anonymized-box" style="min-height: 80px; line-height: 1.6;"></div>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; padding: 16px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 8px;">
+            <h4 style="font-size: 0.95rem; margin-bottom: 12px; color: var(--text-main);">Juicios Estructurados del Modelo Jev:</h4>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap;" id="single-metrics-chips">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 4: Exportación -->
+    <section id="panel-export" class="tab-panel" style="display: none;">
+      <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Exportar Encuesta Limpia y Anonimizada
+        </h2>
+        <p class="card-desc">Descargue el conjunto de datos listo para publicación institucional o análisis público.</p>
+
+        <div class="form-group">
+          <label class="form-label">Formato de Archivo:</label>
+          <div style="display: flex; gap: 16px;">
+            <label class="checkbox-row" style="flex: 1;" for="export-fmt-xlsx">
+              <input type="radio" name="export-format" id="export-fmt-xlsx" value="xlsx" checked />
+              <div class="checkbox-info">
+                <span class="checkbox-title">Microsoft Excel (.xlsx)</span>
+                <span class="checkbox-desc">Ideal para reportes institucionales</span>
+              </div>
+            </label>
+            <label class="checkbox-row" style="flex: 1;" for="export-fmt-csv">
+              <input type="radio" name="export-format" id="export-fmt-csv" value="csv" />
+              <div class="checkbox-info">
+                <span class="checkbox-title">Archivo CSV (.csv UTF-8)</span>
+                <span class="checkbox-desc">Compatible con Python, R, SPSS y BI</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Estructura de Columnas para Exportación:</label>
+          <select id="export-mode-select" class="form-select">
+            <option value="replace_original">Reemplazar columna original con el texto anonimizado (Más limpio)</option>
+            <option value="add_anonymized_col">Conservar columna original y agregar [columna]_anonimizado</option>
+            <option value="all_metadata">Incluir texto anonimizado + Columnas de Auditoría Jev (Toxicidad, PER, Insulto, Tema)</option>
+          </select>
+        </div>
+
+        <label class="checkbox-row" for="chk-exclude-discarded">
+          <input type="checkbox" id="chk-exclude-discarded" checked />
+          <div class="checkbox-info">
+            <span class="checkbox-title">Excluir comentarios descartados / ofensas severas</span>
+            <span class="checkbox-desc">Filtra automáticamente respuestas con toxicidad alta que no aportan al análisis docente</span>
+          </div>
+        </label>
+
+        <div style="margin-top: 24px;">
+          <button class="btn btn-primary" id="btn-do-export" style="width: 100%; font-size: 1rem; padding: 14px;">
+            📥 Descargar Planilla Limpia para Publicación
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast-msg" style="display: none;">
+      <span id="toast-icon">ℹ️</span>
+      <span id="toast-text">Mensaje</span>
+    </div>
+  </div>
+
+  <!-- Client-side Logic -->
+  <script>
+    const API_BASE = '';
+    let currentSessionId = null;
+    let currentUploadedRows = [];
+    let currentFilename = '';
+    let processedResults = [];
+    let currentFilter = 'all';
+
+    // UI Elements
+    const apiStatusBadge = document.getElementById('api-status-badge');
+    const apiStatusText = document.getElementById('api-status-text');
+    const statusDot = document.getElementById('status-dot');
+
+    const fileInput = document.getElementById('file-input');
+    const fileDropzone = document.getElementById('file-dropzone');
+    const btnLoadSample = document.getElementById('btn-load-sample');
+    const fileLoadedInfo = document.getElementById('file-loaded-info');
+    const infoFilename = document.getElementById('info-filename');
+    const infoTotalRows = document.getElementById('info-total-rows');
+    const selectTextColumn = document.getElementById('select-text-column');
+    const btnStartAnalysis = document.getElementById('btn-start-analysis');
+    const btnAnalysisText = document.getElementById('btn-analysis-text');
+    const progressContainer = document.getElementById('analysis-progress-container');
+    const progressFill = document.getElementById('progress-fill');
+    const progressPercentText = document.getElementById('progress-percent-text');
+    const progressStepText = document.getElementById('progress-step-text');
+
+    const previewRawCard = document.getElementById('preview-raw-card');
+    const rawPreviewThead = document.getElementById('raw-preview-thead');
+    const rawPreviewTbody = document.getElementById('raw-preview-tbody');
+
+    const resultsTbody = document.getElementById('results-tbody');
+    const searchInput = document.getElementById('search-input');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    const toastIcon = document.getElementById('toast-icon');
+
+    // Show Notification Toast
+    function showToast(msg, icon = 'ℹ️') {
+      toastText.textContent = msg;
+      toastIcon.textContent = icon;
+      toast.style.display = 'flex';
+      setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    // Health check
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/status`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (data.has_api_key) {
+          apiStatusText.textContent = `TypeSafe Jev Conectado (${data.api_key_masked})`;
+          statusDot.style.background = '#10b981';
+          statusDot.style.boxShadow = '0 0 10px #10b981';
+        } else {
+          apiStatusText.textContent = 'Backend Online (Falta JEV_API_KEY)';
+          statusDot.style.background = '#f59e0b';
+        }
+      } catch (e) {
+        apiStatusText.textContent = 'Backend Desconectado';
+        statusDot.style.background = '#ef4444';
+      }
+    }
+
+    checkHealth();
+
+    // Tab Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-target');
+        const panel = document.getElementById(targetId);
+        if (panel) panel.style.display = 'block';
+      });
+    });
+
+    // Populate Column Select
+    function populateColumns(columns, suggested) {
+      selectTextColumn.innerHTML = '';
+      columns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col;
+        opt.textContent = col === suggested ? `${col} (Sugerida)` : col;
+        if (col === suggested) opt.selected = true;
+        selectTextColumn.appendChild(opt);
+      });
+      selectTextColumn.disabled = false;
+      btnStartAnalysis.disabled = false;
+    }
+
+    // Render Raw Preview Table
+    function renderRawPreview(columns, previewRows) {
+      previewRawCard.style.display = 'block';
+      rawPreviewThead.innerHTML = `<tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr>`;
+      rawPreviewTbody.innerHTML = previewRows.slice(0, 5).map(row => {
+        return `<tr>${columns.map(c => `<td>${row[c] !== undefined ? row[c] : ''}</td>`).join('')}</tr>`;
+      }).join('');
+    }
+
+    // Handle Upload response
+    function handleUploadSuccess(data) {
+      currentSessionId = data.session_id;
+      currentUploadedRows = data.rows || [];
+      currentFilename = data.filename || 'encuesta';
+      infoFilename.textContent = data.filename;
+      infoTotalRows.textContent = data.total_rows;
+      fileLoadedInfo.style.display = 'block';
+      populateColumns(data.columns, data.suggested_column);
+      renderRawPreview(data.columns, data.preview);
+      showToast(`Archivo cargado: ${data.total_rows} filas`, '✅');
+    }
+
+    // Load Sample Dataset
+    btnLoadSample.addEventListener('click', async () => {
+      btnLoadSample.disabled = true;
+      btnLoadSample.textContent = '⏳ Cargando datos de ejemplo...';
+      try {
+        const res = await fetch(`${API_BASE}/api/sample`);
+        const data = await res.json();
+        handleUploadSuccess(data);
+      } catch (e) {
+        showToast('Error al cargar datos de ejemplo', '❌');
+      } finally {
+        btnLoadSample.disabled = false;
+        btnLoadSample.textContent = '⚡ Cargar Encuesta de Ejemplo (10 Respuestas Reales)';
+      }
+    });
+
+    // File Drop & Selection
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      uploadFile(file);
+    });
+
+    fileDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileDropzone.classList.add('dragover');
+    });
+
+    fileDropzone.addEventListener('dragleave', () => {
+      fileDropzone.classList.remove('dragover');
+    });
+
+    fileDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileDropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        uploadFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    async function uploadFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      document.getElementById('dropzone-text').textContent = `Subiendo ${file.name}...`;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Error al procesar el archivo');
+        }
+        const data = await res.json();
+        handleUploadSuccess(data);
+        document.getElementById('dropzone-text').textContent = file.name;
+      } catch (e) {
+        showToast(e.message, '❌');
+        document.getElementById('dropzone-text').textContent = 'Arrastre aquí su archivo .csv o .xlsx';
+      }
+    }
+
+    // Execute Batch Analysis
+    btnStartAnalysis.addEventListener('click', async () => {
+      if (!currentSessionId) return;
+
+      const textColumn = selectTextColumn.value;
+      const maskPer = document.getElementById('chk-mask-per').checked;
+      const maskChair = document.getElementById('chk-mask-chair').checked;
+      const maskInsults = document.getElementById('chk-mask-insults').checked;
+
+      btnStartAnalysis.disabled = true;
+      btnAnalysisText.textContent = 'Ejecutando TypeSafe Jev...';
+      progressContainer.style.display = 'block';
+      progressFill.style.width = '25%';
+      progressPercentText.textContent = '25%';
+      progressStepText.textContent = 'Enviando preguntas System One a Jev...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/analyze-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            rows: currentUploadedRows,
+            filename: currentFilename,
+            text_column: textColumn,
+            mask_per: maskPer,
+            mask_chair: maskChair,
+            mask_insult: maskInsults,
+            concurrency: 5
+          })
+        });
+
+        progressFill.style.width = '80%';
+        progressPercentText.textContent = '80%';
+        progressStepText.textContent = 'Construyendo máscaras y entidades...';
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Error al ejecutar análisis');
+        }
+
+        const data = await res.json();
+        processedResults = data.rows;
+        
+        progressFill.style.width = '100%';
+        progressPercentText.textContent = '100%';
+        progressStepText.textContent = '¡Completado con éxito!';
+
+        updateKpis(data.kpi);
+        renderResultsTable(processedResults);
+
+        showToast(`Análisis completado: ${data.total_analyzed} respuestas moderadas`, '🎉');
+
+        // Switch to Results Tab
+        setTimeout(() => {
+          document.getElementById('tab-btn-results').click();
+        }, 500);
+
+      } catch (e) {
+        showToast(e.message, '❌');
+      } finally {
+        btnStartAnalysis.disabled = false;
+        btnAnalysisText.textContent = 'Ejecutar Análisis con TypeSafe Jev';
+      }
+    });
+
+    // Update KPI UI
+    function updateKpis(kpi) {
+      document.getElementById('kpi-total').textContent = kpi.total;
+      document.getElementById('kpi-per').textContent = kpi.with_person_name;
+      document.getElementById('kpi-chairs').textContent = kpi.with_chair_reference;
+      document.getElementById('kpi-insults').textContent = kpi.with_insults;
+      document.getElementById('kpi-approved').textContent = kpi.approved_direct;
+      document.getElementById('kpi-toxicity').textContent = `${kpi.avg_toxicity} / 5`;
+
+      document.getElementById('filter-cnt-all').textContent = kpi.total;
+      document.getElementById('filter-cnt-per').textContent = kpi.with_person_name;
+      document.getElementById('filter-cnt-chair').textContent = kpi.with_chair_reference;
+      document.getElementById('filter-cnt-insult').textContent = kpi.with_insults;
+      document.getElementById('filter-cnt-approved').textContent = kpi.approved_direct;
+      document.getElementById('filter-cnt-discard').textContent = kpi.action_distribution['descartar'] || 0;
+    }
+
+    // Render Results Table
+    function renderResultsTable(rows) {
+      const q = searchInput.value.toLowerCase().trim();
+      const filtered = rows.filter(r => {
+        // Filter by Tab/Category
+        if (currentFilter === 'per' && !r.jev.has_person_name) return false;
+        if (currentFilter === 'chair' && !r.jev.has_chair_reference) return false;
+        if (currentFilter === 'insult' && !r.jev.has_insult) return false;
+        if (currentFilter === 'approved' && r.jev.recommended_action !== 'publicar_directo') return false;
+        if (currentFilter === 'discard' && r.jev.recommended_action !== 'descartar') return false;
+
+        // Search text
+        if (q && !r.original_text.toLowerCase().includes(q) && !r.anonymized_text.toLowerCase().includes(q)) {
+          return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        resultsTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 40px;">No hay resultados con los filtros seleccionados.</td></tr>`;
+        return;
+      }
+
+      resultsTbody.innerHTML = filtered.map(row => {
+        const jev = row.jev;
+        const toxClass = jev.toxicity_score >= 4 ? 'color: #f87171;' : (jev.toxicity_score >= 2.5 ? 'color: #fbbf24;' : 'color: #34d399;');
+        const toxBarWidth = `${(jev.toxicity_score / 5) * 100}%`;
+        const actionLabel = jev.recommended_action.replace('_', ' ');
+
+        return `
+          <tr data-index="${row.row_index}">
+            <td style="color: var(--text-dim); font-family: var(--font-mono);">${row.row_index + 1}</td>
+            <td>
+              <div class="text-comment-box">${row.highlighted_html}</div>
+            </td>
+            <td>
+              <div class="anonymized-box" contenteditable="true" data-index="${row.row_index}" title="Haga clic para editar la versión anonimizada">${row.anonymized_text}</div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span class="badge-pill ${jev.has_person_name ? 'true' : 'false'}">
+                  PER: ${(jev.prob_person_name * 100).toFixed(0)}%
+                </span>
+                <span class="badge-pill ${jev.has_chair_reference ? 'true' : 'false'}">
+                  Cátedra: ${(jev.prob_chair_reference * 100).toFixed(0)}%
+                </span>
+                <span class="badge-pill ${jev.has_insult ? 'true' : 'false'}">
+                  Insulto: ${(jev.prob_insult * 100).toFixed(0)}%
+                </span>
+              </div>
+            </td>
+            <td style="white-space: nowrap;">
+              <strong style="${toxClass}">${jev.toxicity_score} / 5</strong>
+              <div style="width: 70px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 4px; overflow: hidden;">
+                <div style="height: 100%; width: ${toxBarWidth}; background: ${jev.toxicity_score >= 4 ? '#ef4444' : (jev.toxicity_score >= 2.5 ? '#f59e0b' : '#10b981')};"></div>
+              </div>
+            </td>
+            <td>
+              <span style="font-size: 0.78rem; text-transform: capitalize; color: var(--text-muted);">${jev.primary_topic}</span>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <span class="action-chip ${jev.recommended_action}">${actionLabel}</span>
+                <label style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <input type="checkbox" class="chk-include-row" data-index="${row.row_index}" ${row.include_in_export ? 'checked' : ''} />
+                  Incluir en exportación
+                </label>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Add listeners for row inclusion toggle
+      document.querySelectorAll('.chk-include-row').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+          const idx = parseInt(e.target.getAttribute('data-index'));
+          processedResults[idx].include_in_export = e.target.checked;
+        });
+      });
+
+      // Add listeners for editable anonymized box
+      document.querySelectorAll('.anonymized-box[contenteditable]').forEach(box => {
+        box.addEventListener('blur', (e) => {
+          const idx = parseInt(e.target.getAttribute('data-index'));
+          processedResults[idx].anonymized_text = e.target.innerText;
+        });
+      });
+    }
+
+    // Filter Buttons
+    document.querySelectorAll('.filter-pill[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill[data-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.getAttribute('data-filter');
+        renderResultsTable(processedResults);
+      });
+    });
+
+    // Search input
+    searchInput.addEventListener('input', () => {
+      renderResultsTable(processedResults);
+    });
+
+    // Playground Logic
+    const singleTextInput = document.getElementById('single-text-input');
+    const btnRunSingle = document.getElementById('btn-run-single');
+    const singleResultBox = document.getElementById('single-result-box');
+    const singleHighlighted = document.getElementById('single-highlighted');
+    const singleAnonymized = document.getElementById('single-anonymized');
+    const singleMetricsChips = document.getElementById('single-metrics-chips');
+
+    document.querySelectorAll('.sample-prompt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        singleTextInput.value = btn.getAttribute('data-text');
+        btnRunSingle.click();
+      });
+    });
+
+    btnRunSingle.addEventListener('click', async () => {
+      const text = singleTextInput.value.trim();
+      if (!text) {
+        showToast('Escriba un texto para analizar', '⚠️');
+        return;
+      }
+
+      btnRunSingle.disabled = true;
+      btnRunSingle.textContent = 'Evaluando con Jev...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/analyze-single`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+
+        singleResultBox.style.display = 'block';
+        singleHighlighted.innerHTML = data.highlighted_html;
+        singleAnonymized.textContent = data.anonymized_text;
+
+        const jev = data.jev;
+        singleMetricsChips.innerHTML = `
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
+            <div class="kpi-label">Persona (PER)</div>
+            <div class="kpi-value" style="font-size: 1.2rem;">${(jev.prob_person_name * 100).toFixed(0)}%</div>
+            <div class="kpi-sub">${jev.has_person_name ? 'Detectada' : 'No detectada'}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
+            <div class="kpi-label">Cátedra / Materia</div>
+            <div class="kpi-value" style="font-size: 1.2rem;">${(jev.prob_chair_reference * 100).toFixed(0)}%</div>
+            <div class="kpi-sub">${jev.has_chair_reference ? 'Detectada' : 'No detectada'}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
+            <div class="kpi-label">Insulto / Inapropiado</div>
+            <div class="kpi-value" style="font-size: 1.2rem;">${(jev.prob_insult * 100).toFixed(0)}%</div>
+            <div class="kpi-sub">${jev.has_insult ? 'Detectado' : 'No detectado'}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
+            <div class="kpi-label">Toxicidad Jev</div>
+            <div class="kpi-value" style="font-size: 1.2rem;">${jev.toxicity_score} / 5</div>
+            <div class="kpi-sub">${jev.primary_topic}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 160px;">
+            <div class="kpi-label">Acción Sugerida</div>
+            <div class="kpi-value" style="font-size: 1rem;"><span class="action-chip ${jev.recommended_action}">${jev.recommended_action}</span></div>
+            <div class="kpi-sub">Moderación</div>
+          </div>
+        `;
+
+        showToast('Respuesta evaluada con éxito', '⚡');
+      } catch (e) {
+        showToast('Error al analizar comentario', '❌');
+      } finally {
+        btnRunSingle.disabled = false;
+        btnRunSingle.textContent = '⚡ Analizar con TypeSafe Jev (100ms)';
+      }
+    });
+
+    // Export Logic
+    const btnDoExport = document.getElementById('btn-do-export');
+    btnDoExport.addEventListener('click', async () => {
+      if (!currentSessionId || processedResults.length === 0) {
+        showToast('Primero cargue y analice una encuesta', '⚠️');
+        return;
+      }
+
+      const format = document.querySelector('input[name="export-format"]:checked').value;
+      const mode = document.getElementById('export-mode-select').value;
+      const excludeDiscarded = document.getElementById('chk-exclude-discarded').checked;
+
+      btnDoExport.disabled = true;
+      btnDoExport.textContent = 'Generando archivo...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            filename: currentFilename,
+            text_column: selectTextColumn ? selectTextColumn.value : 'comentario',
+            export_format: format,
+            mode: mode,
+            exclude_discarded: excludeDiscarded,
+            custom_rows: processedResults
+          })
+        });
+
+        if (!res.ok) throw new Error('Error al exportar');
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = format === 'csv' ? 'encuesta_estudiantes_limpia.csv' : 'encuesta_estudiantes_limpia.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        showToast('¡Descarga iniciada con éxito!', '📥');
+      } catch (e) {
+        showToast('Error al exportar archivo', '❌');
+      } finally {
+        btnDoExport.disabled = false;
+        btnDoExport.textContent = '📥 Descargar Planilla Limpia para Publicación';
+      }
+    });
+  </script>
+</body>
+</html>

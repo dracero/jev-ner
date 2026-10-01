@@ -1,0 +1,11 @@
+﻿id_encuesta,estudiante_id,materia,comision,comentario,calificacion_general
+101,EST-2024-001,Algoritmos y Estructuras de Datos,K2051,"El profesor Juan Perez de Algoritmos es un desastre y un idiota, nunca explica nada y no responde dudas.",2
+102,EST-2024-002,Sistemas Operativos,K3012,Excelente cursada en Sistemas Operativos. Los trabajos prácticos fueron muy claros y aprendí un montón.,9
+103,EST-2024-003,Física I,K1023,"La docente María Gómez de Física I tiene cero paciencia, es una forra que nos trata como imbéciles a todos.",1
+104,EST-2024-004,Análisis Matemático II,K2001,Los parciales de Análisis Matemático II estuvieron bien planteados pero faltó tiempo para resolver el ejercicio 4.,7
+105,EST-2024-005,Arquitectura de Computadoras,K2042,El Ing. Martínez no vino a la mitad de las clases y después toma cualquier cosa en el examen. Muy poco serio.,3
+106,EST-2024-006,Bases de Datos,K3055,Me encantó la materia. Las explicaciones en las clases teóricas ayudaron mucho para el proyecto final.,10
+107,EST-2024-007,Química General,K1011,"El ayudante Nicolás Fernández fue súper atento en el laboratorio, pero la cátedra de Química General está desorganizada con las fechas de entrega.",6
+108,EST-2024-008,Ingeniería de Software,K4021,"Una pérdida de tiempo total, la titular es una chanta inútil que se pasa hablando de su vida personal en lugar del temario.",2
+109,EST-2024-009,Álgebra Lineal,K1005,Sería muy bueno que actualicen las guías de ejercicios de Álgebra Lineal porque tienen varias erratas en las respuestas.,8
+110,EST-2024-010,Paradigmas de Programación,K2031,Excelente el campus virtual y el material de lectura. Se agradece la enorme dedicación y respeto del equipo docente.,10

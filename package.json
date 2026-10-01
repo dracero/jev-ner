@@ -1,0 +1,24 @@
+{
+  "name": "jev-ner-fullstack",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "JevNER • Moderador y Anonimizador de Encuestas Estudiantiles 100% Astro Fullstack",
+  "scripts": {
+    "dev": "ASTRO_DEV_BACKGROUND=0 astro dev --host 0.0.0.0 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^11.0.11",
+    "@types/papaparse": "^5.5.2",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "astro": "^7.3.5",
+    "dotenv": "^18.0.5",
+    "papaparse": "^5.7.0",
+    "xlsx": "^0.18.5"
+  },
+  "allowScripts": {
+    "esbuild": true
+  }
+}
