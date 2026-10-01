@@ -20,9 +20,12 @@ export const GET: APIRoute = async () => {
     JSON.stringify({
       session_id: sessionId,
       filename: 'encuesta_estudiantes_ejemplo.xlsx',
+      sheet_names: ['Comentarios 2026 1C', 'Sheet1'],
+      selected_sheet: 'Comentarios 2026 1C',
       total_rows: rows.length,
       columns,
       suggested_column: suggestedColumn,
+      suggested_id_column: 'id_encuesta',
       preview: rows,
       rows: rows
     }),

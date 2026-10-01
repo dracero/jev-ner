@@ -41,13 +41,17 @@ import '../styles/index.css';
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
         2. Tabla de Moderación & NER
       </button>
+      <button class="tab-btn" id="tab-btn-audit" data-target="panel-audit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        🎯 3. Auditoría & Filtros Específicos (5 Reportes)
+      </button>
       <button class="tab-btn" id="tab-btn-playground" data-target="panel-playground">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-        3. Probar Comentario (Playground)
+        4. Probar Comentario (Playground)
       </button>
       <button class="tab-btn" id="tab-btn-export" data-target="panel-export">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        4. Exportar Dataset Limpio
+        5. Exportar Dataset Limpio
       </button>
     </nav>
 
@@ -92,13 +96,28 @@ import '../styles/index.css';
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             Parámetros de Anonimización & Jev
           </h2>
-          <p class="card-desc">Seleccione la columna de comentarios y configure las reglas de anonimización.</p>
+          <p class="card-desc">Seleccione la hoja de cálculo, la columna de ID y la columna de respuestas para moderar y auditar.</p>
 
-          <div class="form-group">
-            <label class="form-label" for="select-text-column">Columna de Respuestas / Comentarios:</label>
-            <select id="select-text-column" class="form-select" disabled>
+          <div class="form-group" id="sheet-selector-group" style="display: none;">
+            <label class="form-label" for="select-sheet">Hoja de Cálculo Activa:</label>
+            <select id="select-sheet" class="form-select">
               <option value="">Cargue un archivo primero...</option>
             </select>
+          </div>
+
+          <div class="grid-2" style="gap: 12px; margin-bottom: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="select-id-column">Columna de ID / Identificador:</label>
+              <select id="select-id-column" class="form-select" disabled>
+                <option value="">Cargue un archivo...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="select-text-column">Columna de Comentarios:</label>
+              <select id="select-text-column" class="form-select" disabled>
+                <option value="">Cargue un archivo...</option>
+              </select>
+            </div>
           </div>
 
           <label class="checkbox-row" for="chk-mask-per">
@@ -125,10 +144,13 @@ import '../styles/index.css';
             </div>
           </label>
 
-          <div style="margin-top: 20px;">
+          <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px;">
             <button class="btn btn-primary" id="btn-start-analysis" style="width: 100%;" disabled>
               <span id="btn-analysis-icon">🚀</span>
               <span id="btn-analysis-text">Ejecutar Análisis con TypeSafe Jev</span>
+            </button>
+            <button class="btn btn-outline" id="btn-quick-audit" style="width: 100%;" disabled>
+              <span>🎯 Ir Directo a la Auditoría de los 5 Criterios</span>
             </button>
           </div>
 
@@ -235,7 +257,193 @@ import '../styles/index.css';
       </div>
     </section>
 
-    <!-- PANEL 3: Playground / Prueba Individual -->
+    <!-- PANEL 3: Auditoría & Filtros Específicos (5 Reportes) -->
+    <section id="panel-audit" class="tab-panel" style="display: none;">
+      <div class="sheet-selector-bar">
+        <div style="flex: 1; min-width: 240px;">
+          <strong style="color: var(--text-main); font-size: 1.05rem;">Auditoría de Encuestas & Criterios Específicos</strong>
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">
+            Hoja activa: <span id="audit-active-sheet" style="color: #818cf8; font-weight: 600;">Comentarios 2026 1C</span> • 
+            Columna ID: <span id="audit-active-id-col" style="color: #34d399; font-weight: 600;">id_encuesta</span> • 
+            Total filas: <span id="audit-total-rows" style="font-weight: 600;">0</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-primary" id="btn-run-audit-now">
+            <span>⚡ Ejecutar / Actualizar Auditoría</span>
+          </button>
+          <button class="btn btn-outline" id="btn-export-full-excel">
+            <span>📦 Descargar Excel Consolidado (5 Hojas)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="audit-section">
+        <!-- 1. Tratos inapropiados, maliciosos, faltas de respeto, insultos o que hablan mal de personas -->
+        <div class="audit-card">
+          <div class="audit-card-header">
+            <div class="audit-card-title-group">
+              <div class="audit-card-title">
+                <span>1. Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas</span>
+                <span class="badge-counter alert" id="badge-disrespect-count">0 encontrados</span>
+              </div>
+              <p class="audit-card-desc">Detalle de IDs en tabla exportable que reportan tratos indebidos o quejas agresivas hacia docentes o personas.</p>
+            </div>
+            <div class="audit-card-actions">
+              <button class="btn-sm btn-primary-sm" id="btn-export-disrespect-csv">📥 Exportar Tabla (CSV)</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="moderation-table">
+              <thead>
+                <tr>
+                  <th style="width: 120px;">ID</th>
+                  <th>Comentario</th>
+                  <th style="width: 260px;">Detección / Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-report-disrespect">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 24px;">Cargue un archivo o datos de ejemplo para ver los resultados</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 2. Nombres propios en la hoja seleccionada (ej. Comentarios 2026 1C) -->
+        <div class="audit-card">
+          <div class="audit-card-header">
+            <div class="audit-card-title-group">
+              <div class="audit-card-title">
+                <span>2. Comentarios donde figuren Nombres Propios</span>
+                <span class="badge-counter warning" id="badge-propernames-count">0 encontrados</span>
+              </div>
+              <p class="audit-card-desc">Detalle de IDs de la hoja <strong id="proper-names-sheet-label" style="color: #818cf8;">Comentarios 2026 1C</strong> donde figuren nombres propios de docentes o personas.</p>
+            </div>
+            <div class="audit-card-actions">
+              <button class="btn-sm btn-primary-sm" id="btn-export-propernames-csv">📥 Exportar Tabla (CSV)</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="moderation-table">
+              <thead>
+                <tr>
+                  <th style="width: 120px;">ID</th>
+                  <th style="width: 250px;">Nombres Propios Identificados</th>
+                  <th>Comentario</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-report-propernames">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 24px;">Cargue un archivo o datos de ejemplo para ver los resultados</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 3. Términos de la jerga argentina agresiva -->
+        <div class="audit-card">
+          <div class="audit-card-header">
+            <div class="audit-card-title-group">
+              <div class="audit-card-title">
+                <span>3. Términos Específicos de la Jerga Argentina Agresiva</span>
+                <span class="badge-counter alert" id="badge-argslang-count">0 encontrados</span>
+              </div>
+              <p class="audit-card-desc">Términos buscados (tanto en femenino como en masculino, singular y plural): <em>paja, boludo/a, forro/a, mierda, pelotudo/a, mogólico/a, estúpido/a, garca, choto/a, sorete, conchudo/a, puto/a, pajero/a</em>.</p>
+            </div>
+            <div class="audit-card-actions">
+              <button class="btn-sm btn-primary-sm" id="btn-export-argslang-csv">📥 Exportar Tabla (CSV)</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="moderation-table">
+              <thead>
+                <tr>
+                  <th style="width: 120px;">ID</th>
+                  <th style="width: 240px;">Término(s) Jerga Detectado(s)</th>
+                  <th>Comentario</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-report-argslang">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 24px;">Cargue un archivo o datos de ejemplo para ver los resultados</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 4. Connotación política, discriminación y/o cuestiones de género -->
+        <div class="audit-card">
+          <div class="audit-card-header">
+            <div class="audit-card-title-group">
+              <div class="audit-card-title">
+                <span>4. Connotación Política, Discriminación y/o Cuestiones de Género</span>
+                <span class="badge-counter warning" id="badge-political-count">0 IDs</span>
+              </div>
+              <p class="audit-card-desc">Listado de IDs (uno por fila) de comentarios que tengan connotación política, discriminación y/o cuestiones de género.</p>
+            </div>
+            <div class="audit-card-actions">
+              <button class="btn-sm" id="btn-copy-political-ids">📋 Copiar IDs</button>
+              <button class="btn-sm btn-primary-sm" id="btn-download-political-txt">📥 Descargar Lista (TXT)</button>
+            </div>
+          </div>
+          <div class="grid-2" style="gap: 16px;">
+            <div>
+              <label class="form-label">Lista de IDs (uno por fila):</label>
+              <div class="id-list-box" id="list-political-ids">(Sin IDs coincidentes en la hoja actual)</div>
+            </div>
+            <div>
+              <label class="form-label">Detalle de Comentarios Identificados:</label>
+              <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                <table class="moderation-table" style="font-size: 0.82rem;">
+                  <thead>
+                    <tr><th style="width: 70px;">ID</th><th style="width: 140px;">Categoría</th><th>Comentario</th></tr>
+                  </thead>
+                  <tbody id="tbody-detail-political">
+                    <tr><td colspan="3" style="color: var(--text-dim); text-align: center;">Ningún comentario con este criterio</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Comentarios de más de 120 palabras con connotación negativa -->
+        <div class="audit-card">
+          <div class="audit-card-header">
+            <div class="audit-card-title-group">
+              <div class="audit-card-title">
+                <span>5. Comentarios de Más de 120 Palabras con Connotación Negativa</span>
+                <span class="badge-counter" id="badge-longneg-count">0 IDs</span>
+              </div>
+              <p class="audit-card-desc">Listado de IDs (uno por fila) con comentarios extensos (&gt; 120 palabras) y tono/connotación negativa.</p>
+            </div>
+            <div class="audit-card-actions">
+              <button class="btn-sm" id="btn-copy-longneg-ids">📋 Copiar IDs</button>
+              <button class="btn-sm btn-primary-sm" id="btn-download-longneg-txt">📥 Descargar Lista (TXT)</button>
+            </div>
+          </div>
+          <div class="grid-2" style="gap: 16px;">
+            <div>
+              <label class="form-label">Lista de IDs (uno por fila):</label>
+              <div class="id-list-box" id="list-longneg-ids">(Sin comentarios de más de 120 palabras con connotación negativa)</div>
+            </div>
+            <div>
+              <label class="form-label">Detalle de Comentarios Identificados:</label>
+              <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                <table class="moderation-table" style="font-size: 0.82rem;">
+                  <thead>
+                    <tr><th style="width: 70px;">ID</th><th style="width: 90px;">Palabras</th><th>Comentario</th></tr>
+                  </thead>
+                  <tbody id="tbody-detail-longneg">
+                    <tr><td colspan="3" style="color: var(--text-dim); text-align: center;">Ningún comentario supera las 120 palabras</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 4: Playground / Prueba Individual -->
     <section id="panel-playground" class="tab-panel" style="display: none;">
       <div class="glass-card">
         <h2 class="card-title">
@@ -349,6 +557,10 @@ import '../styles/index.css';
     let currentSessionId = null;
     let currentUploadedRows = [];
     let currentFilename = '';
+    let currentSheetNames = ['Sheet1'];
+    let currentSelectedSheet = 'Sheet1';
+    let currentSheetsData = {};
+    let currentAuditResult = null;
     let processedResults = [];
     let currentFilter = 'all';
 
@@ -363,9 +575,13 @@ import '../styles/index.css';
     const fileLoadedInfo = document.getElementById('file-loaded-info');
     const infoFilename = document.getElementById('info-filename');
     const infoTotalRows = document.getElementById('info-total-rows');
+    const selectSheet = document.getElementById('select-sheet');
+    const sheetSelectorGroup = document.getElementById('sheet-selector-group');
+    const selectIdColumn = document.getElementById('select-id-column');
     const selectTextColumn = document.getElementById('select-text-column');
     const btnStartAnalysis = document.getElementById('btn-start-analysis');
     const btnAnalysisText = document.getElementById('btn-analysis-text');
+    const btnQuickAudit = document.getElementById('btn-quick-audit');
     const progressContainer = document.getElementById('analysis-progress-container');
     const progressFill = document.getElementById('progress-fill');
     const progressPercentText = document.getElementById('progress-percent-text');
@@ -380,6 +596,38 @@ import '../styles/index.css';
     const toast = document.getElementById('toast');
     const toastText = document.getElementById('toast-text');
     const toastIcon = document.getElementById('toast-icon');
+
+    // Audit Panel UI Elements
+    const auditActiveSheet = document.getElementById('audit-active-sheet');
+    const auditActiveIdCol = document.getElementById('audit-active-id-col');
+    const auditTotalRows = document.getElementById('audit-total-rows');
+    const btnRunAuditNow = document.getElementById('btn-run-audit-now');
+    const btnExportFullExcel = document.getElementById('btn-export-full-excel');
+
+    const badgeDisrespectCount = document.getElementById('badge-disrespect-count');
+    const tbodyReportDisrespect = document.getElementById('tbody-report-disrespect');
+    const btnExportDisrespectCsv = document.getElementById('btn-export-disrespect-csv');
+
+    const badgePropernamesCount = document.getElementById('badge-propernames-count');
+    const properNamesSheetLabel = document.getElementById('proper-names-sheet-label');
+    const tbodyReportPropernames = document.getElementById('tbody-report-propernames');
+    const btnExportPropernamesCsv = document.getElementById('btn-export-propernames-csv');
+
+    const badgeArgslangCount = document.getElementById('badge-argslang-count');
+    const tbodyReportArgslang = document.getElementById('tbody-report-argslang');
+    const btnExportArgslangCsv = document.getElementById('btn-export-argslang-csv');
+
+    const badgePoliticalCount = document.getElementById('badge-political-count');
+    const listPoliticalIds = document.getElementById('list-political-ids');
+    const tbodyDetailPolitical = document.getElementById('tbody-detail-political');
+    const btnCopyPoliticalIds = document.getElementById('btn-copy-political-ids');
+    const btnDownloadPoliticalTxt = document.getElementById('btn-download-political-txt');
+
+    const badgeLongnegCount = document.getElementById('badge-longneg-count');
+    const listLongnegIds = document.getElementById('list-longneg-ids');
+    const tbodyDetailLongneg = document.getElementById('tbody-detail-longneg');
+    const btnCopyLongnegIds = document.getElementById('btn-copy-longneg-ids');
+    const btnDownloadLongnegTxt = document.getElementById('btn-download-longneg-txt');
 
     // Show Notification Toast
     function showToast(msg, icon = 'ℹ️') {
@@ -423,6 +671,60 @@ import '../styles/index.css';
       });
     });
 
+    // Populate Sheets
+    function populateSheets(sheetNames, selected) {
+      if (!sheetNames || sheetNames.length <= 1) {
+        sheetSelectorGroup.style.display = 'none';
+        return;
+      }
+      sheetSelectorGroup.style.display = 'block';
+      selectSheet.innerHTML = '';
+      sheetNames.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        if (s === selected) opt.selected = true;
+        selectSheet.appendChild(opt);
+      });
+    }
+
+    selectSheet?.addEventListener('change', () => {
+      const chosen = selectSheet.value;
+      if (!chosen || !currentSheetsData[chosen]) return;
+      currentSelectedSheet = chosen;
+      currentUploadedRows = currentSheetsData[chosen];
+      infoTotalRows.textContent = currentUploadedRows.length;
+      if (currentUploadedRows.length > 0) {
+        const cols = Object.keys(currentUploadedRows[0]);
+        populateIdColumns(cols);
+        populateColumns(cols);
+        renderRawPreview(cols, currentUploadedRows.slice(0, 5));
+      }
+      runAudit();
+      showToast(`Cambiado a hoja: ${chosen}`, '📄');
+    });
+
+    // Populate ID Column Select
+    function populateIdColumns(columns, suggestedId) {
+      selectIdColumn.innerHTML = '';
+      const candidateNames = ['id_encuesta', 'id', 'id_fila', 'identificador', 'numero', 'nro', '#', 'estudiante_id', 'codigo'];
+      let bestMatch = suggestedId;
+      if (!bestMatch) {
+        bestMatch = columns.find(c => candidateNames.includes(c.toLowerCase().trim()))
+          || columns.find(c => c.toLowerCase().includes('id'))
+          || columns[0];
+      }
+
+      columns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col;
+        opt.textContent = col === bestMatch ? `${col} (ID)` : col;
+        if (col === bestMatch) opt.selected = true;
+        selectIdColumn.appendChild(opt);
+      });
+      selectIdColumn.disabled = false;
+    }
+
     // Populate Column Select
     function populateColumns(columns, suggested) {
       selectTextColumn.innerHTML = '';
@@ -449,15 +751,248 @@ import '../styles/index.css';
     // Handle Upload response
     function handleUploadSuccess(data) {
       currentSessionId = data.session_id;
-      currentUploadedRows = data.rows || [];
       currentFilename = data.filename || 'encuesta';
+      currentSheetNames = data.sheet_names || ['Sheet1'];
+      currentSelectedSheet = data.selected_sheet || currentSheetNames[0];
+      currentSheetsData = data.sheets_data || { [currentSelectedSheet]: data.rows || [] };
+      currentUploadedRows = data.rows || currentSheetsData[currentSelectedSheet] || [];
+
       infoFilename.textContent = data.filename;
-      infoTotalRows.textContent = data.total_rows;
+      infoTotalRows.textContent = currentUploadedRows.length;
       fileLoadedInfo.style.display = 'block';
+
+      populateSheets(currentSheetNames, currentSelectedSheet);
+      populateIdColumns(data.columns, data.suggested_id_column);
       populateColumns(data.columns, data.suggested_column);
-      renderRawPreview(data.columns, data.preview);
-      showToast(`Archivo cargado: ${data.total_rows} filas`, '✅');
+      renderRawPreview(data.columns, data.preview || currentUploadedRows.slice(0, 5));
+
+      btnStartAnalysis.disabled = false;
+      btnQuickAudit.disabled = false;
+
+      // Ejecutar automáticamente la auditoría de los 5 requisitos
+      runAudit();
+      showToast(`Archivo cargado: ${currentUploadedRows.length} filas analizadas`, '✅');
     }
+
+    selectIdColumn?.addEventListener('change', () => runAudit());
+    selectTextColumn?.addEventListener('change', () => runAudit());
+
+    btnQuickAudit?.addEventListener('click', () => {
+      document.getElementById('tab-btn-audit').click();
+    });
+
+    btnRunAuditNow?.addEventListener('click', () => {
+      runAudit();
+      showToast('Auditoría actualizada con éxito', '⚡');
+    });
+
+    // Run 5-criteria Survey Audit
+    async function runAudit() {
+      if (!currentUploadedRows || currentUploadedRows.length === 0) return;
+
+      const idCol = selectIdColumn.value || '';
+      const textCol = selectTextColumn.value || '';
+      const sheet = currentSelectedSheet || 'Comentarios 2026 1C';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/audit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            rows: currentUploadedRows,
+            id_column: idCol,
+            text_column: textCol,
+            sheet_name: sheet
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Error en auditoría');
+        }
+
+        const data = await res.json();
+        currentAuditResult = data.audit;
+        renderAuditReports(currentAuditResult);
+      } catch (e) {
+        showToast(e.message, '❌');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Render 5 Audit Reports
+    function renderAuditReports(audit) {
+      if (!audit) return;
+      if (auditActiveSheet) auditActiveSheet.textContent = audit.sheetName;
+      if (properNamesSheetLabel) properNamesSheetLabel.textContent = audit.sheetName;
+      if (auditActiveIdCol) auditActiveIdCol.textContent = audit.idColumn;
+      if (auditTotalRows) auditTotalRows.textContent = audit.totalRows;
+
+      // 1. Tratos inapropiados
+      badgeDisrespectCount.textContent = `${audit.reportDisrespect.length} encontrados`;
+      if (audit.reportDisrespect.length === 0) {
+        tbodyReportDisrespect.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 20px;">Sin comentarios con faltas de respeto o tratos inapropiados en esta hoja.</td></tr>`;
+      } else {
+        tbodyReportDisrespect.innerHTML = audit.reportDisrespect.map(r => `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 700; color: #f87171;">${r.id}</td>
+            <td>${escapeHtml(r.comentario)}</td>
+            <td><span class="badge-pill true" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3);">${escapeHtml(r.detalles || '')}</span></td>
+          </tr>
+        `).join('');
+      }
+
+      // 2. Nombres propios
+      badgePropernamesCount.textContent = `${audit.reportProperNames.length} encontrados`;
+      if (audit.reportProperNames.length === 0) {
+        tbodyReportPropernames.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 20px;">Sin nombres propios detectados en la hoja "${escapeHtml(audit.sheetName)}".</td></tr>`;
+      } else {
+        tbodyReportPropernames.innerHTML = audit.reportProperNames.map(r => `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 700; color: #fbbf24;">${r.id}</td>
+            <td><strong style="color: #fbbf24; font-family: var(--font-mono);">${escapeHtml(r.detalles || '')}</strong></td>
+            <td>${escapeHtml(r.comentario)}</td>
+          </tr>
+        `).join('');
+      }
+
+      // 3. Jerga argentina agresiva
+      badgeArgslangCount.textContent = `${audit.reportArgSlang.length} encontrados`;
+      if (audit.reportArgSlang.length === 0) {
+        tbodyReportArgslang.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 20px;">Sin términos de la lista especificada en esta hoja.</td></tr>`;
+      } else {
+        tbodyReportArgslang.innerHTML = audit.reportArgSlang.map(r => `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 700; color: #f87171;">${r.id}</td>
+            <td><span class="badge-pill true" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.4); font-family: var(--font-mono);">${escapeHtml(r.detalles || '')}</span></td>
+            <td>${escapeHtml(r.comentario)}</td>
+          </tr>
+        `).join('');
+      }
+
+      // 4. Política, discriminación, género
+      const polIds = audit.idsPoliticalGenderDiscrimination || [];
+      badgePoliticalCount.textContent = `${polIds.length} IDs`;
+      if (polIds.length === 0) {
+        listPoliticalIds.textContent = '(Ningún ID coincide con connotación política, discriminación o cuestiones de género)';
+        tbodyDetailPolitical.innerHTML = `<tr><td colspan="3" style="color: var(--text-dim); text-align: center;">Ningún comentario con este criterio en las fuentes analizadas</td></tr>`;
+      } else {
+        listPoliticalIds.textContent = polIds.join('\n');
+        tbodyDetailPolitical.innerHTML = (audit.reportPoliticalGenderDiscrimination || []).map(r => `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 700; color: #818cf8;">${r.id}</td>
+            <td><span class="badge-pill true" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">${escapeHtml(r.detalles || '')}</span></td>
+            <td>${escapeHtml(r.comentario)}</td>
+          </tr>
+        `).join('');
+      }
+
+      // 5. Más de 120 palabras negativas
+      const longIds = audit.idsOver120WordsNegative || [];
+      badgeLongnegCount.textContent = `${longIds.length} IDs`;
+      if (longIds.length === 0) {
+        listLongnegIds.textContent = '(Ningún ID contiene comentarios de más de 120 palabras con connotación negativa)';
+        tbodyDetailLongneg.innerHTML = `<tr><td colspan="3" style="color: var(--text-dim); text-align: center;">Ningún comentario supera las 120 palabras en las fuentes analizadas</td></tr>`;
+      } else {
+        listLongnegIds.textContent = longIds.join('\n');
+        tbodyDetailLongneg.innerHTML = (audit.reportOver120WordsNegative || []).map(r => `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 700; color: #f87171;">${r.id}</td>
+            <td style="font-family: var(--font-mono);">${r.palabras} palabras</td>
+            <td>${escapeHtml(r.comentario)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // Copy and Download Helpers
+    function downloadText(content, filename) {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Descargado: ${filename}`, '📥');
+    }
+
+    btnCopyPoliticalIds?.addEventListener('click', () => {
+      if (!currentAuditResult || currentAuditResult.idsPoliticalGenderDiscrimination.length === 0) {
+        showToast('No hay IDs coincidentes para copiar', '⚠️');
+        return;
+      }
+      navigator.clipboard.writeText(currentAuditResult.idsPoliticalGenderDiscrimination.join('\n'));
+      showToast('IDs copiados al portapapeles (uno por fila)', '📋');
+    });
+
+    btnDownloadPoliticalTxt?.addEventListener('click', () => {
+      if (!currentAuditResult) return;
+      const text = currentAuditResult.idsPoliticalGenderDiscrimination.join('\n');
+      downloadText(text, 'ids_politica_discriminacion_genero.txt');
+    });
+
+    btnCopyLongnegIds?.addEventListener('click', () => {
+      if (!currentAuditResult || currentAuditResult.idsOver120WordsNegative.length === 0) {
+        showToast('No hay IDs coincidentes para copiar', '⚠️');
+        return;
+      }
+      navigator.clipboard.writeText(currentAuditResult.idsOver120WordsNegative.join('\n'));
+      showToast('IDs copiados al portapapeles (uno por fila)', '📋');
+    });
+
+    btnDownloadLongnegTxt?.addEventListener('click', () => {
+      if (!currentAuditResult) return;
+      const text = currentAuditResult.idsOver120WordsNegative.join('\n');
+      downloadText(text, 'ids_mas_120_palabras_negativas.txt');
+    });
+
+    // CSV and Full Excel Export Helpers
+    async function downloadAuditExport(target, filename) {
+      if (!currentAuditResult) {
+        showToast('Ejecute la auditoría primero', '⚠️');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/audit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rows: currentUploadedRows,
+            id_column: selectIdColumn.value,
+            text_column: selectTextColumn.value,
+            sheet_name: currentSelectedSheet,
+            export_target: target
+          })
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`Descargado: ${filename}`, '📥');
+      } catch (e) {
+        showToast('Error al exportar', '❌');
+      }
+    }
+
+    btnExportDisrespectCsv?.addEventListener('click', () => downloadAuditExport('disrespect_csv', '1_tratos_inapropiados_insultos.csv'));
+    btnExportPropernamesCsv?.addEventListener('click', () => downloadAuditExport('proper_names_csv', '2_nombres_propios.csv'));
+    btnExportArgslangCsv?.addEventListener('click', () => downloadAuditExport('slang_csv', '3_jerga_argentina.csv'));
+    btnExportFullExcel?.addEventListener('click', () => downloadAuditExport('full_excel', 'auditoria_5_reportes_encuestas.xlsx'));
+
 
     // Load Sample Dataset
     btnLoadSample.addEventListener('click', async () => {
