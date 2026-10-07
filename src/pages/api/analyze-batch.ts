@@ -54,7 +54,10 @@ export const POST: APIRoute = async ({ request }) => {
         originalText,
         jevRes.has_person_name,
         jevRes.has_chair_reference,
-        jevRes.has_insult
+        jevRes.has_insult,
+        jevRes.identified_person_name,
+        jevRes.identified_chair_name,
+        jevRes.identified_insult
       );
 
       const { anonymizedText, highlightedHtml } = generateAnonymizedAndHighlighted(

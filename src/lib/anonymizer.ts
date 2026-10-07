@@ -1,3 +1,6 @@
+// Motor de Anotación y Anonimización de Entidades
+// 100% basado en las clasificaciones semánticas de TypeSafe Jev System One (cero regex estáticas)
+
 export interface EntitySpan {
   type: 'PER' | 'CATEDRA' | 'INSULTO';
   label: string;
@@ -7,188 +10,73 @@ export interface EntitySpan {
   confidence: number;
 }
 
-const TITLES_REGEX = "(?:Prof(?:esor|esora)?|Docente|Ayudante|Titular|Adjunt[oa]|JTP|Ing(?:eniero|eniera)?|Lic(?:enciad[oa])?|Dr[a]?\\.?)";
-
-const COMMON_CHAIRS = [
-  "sistemas operativos",
-  "algoritmos(?: y estructuras de datos)?",
-  "estructuras de datos",
-  "análisis matemático(?: [iIvV1-3]+)?",
-  "álgebra(?: lineal)?(?: [iIvV1-3]+)?",
-  "física(?: [iIvV1-3]+)?",
-  "química(?: general)?(?: [iIvV1-3]+)?",
-  "bases de datos(?: [iIvV1-3]+)?",
-  "redes(?: de información| de computadoras)?",
-  "ingeniería de software(?: [iIvV1-3]+)?",
-  "paradigmas de programación",
-  "diseño de sistemas",
-  "teoría de la computación",
-  "probabilidad y estadística",
-  "arquitectura de computadoras",
-  "seguridad informática",
-  "inteligencia artificial",
-  "gestión de datos",
-  "comunicación de datos",
-  "legislación",
-  "economía"
-];
-
-const INSULT_TERMS = [
-  "pelotud[oa]s?",
-  "forr[oa]s?",
-  "inútil(?:es)?",
-  "chantas?",
-  "mierdas?",
-  "hijos? de puta",
-  "hdp",
-  "garcas?",
-  "idiotas?",
-  "estúpid[oa]s?",
-  "imbécil(?:es)?",
-  "vagos?",
-  "vagas?",
-  "ladrones?",
-  "ladrona",
-  "estafadores?",
-  "corrupt[oa]s?",
-  "asco",
-  "porquería",
-  "odio a",
-  "tarad[oa]s?",
-  "miserable",
-  "sinvergüenza"
-];
-
-const COMMON_SURNAMES = [
-  "González", "Gonzalez", "Rodríguez", "Rodriguez", "Gómez", "Gomez", "Fernández", "Fernandez",
-  "López", "Lopez", "Díaz", "Diaz", "Martínez", "Martinez", "Pérez", "Perez", "García", "Garcia",
-  "Sánchez", "Sanchez", "Romero", "Sosa", "Álvarez", "Alvarez", "Torres", "Ruiz", "Ramírez", "Ramirez",
-  "Flores", "Benítez", "Benitez", "Acosta", "Medina", "Herrera", "Aguirre", "Pereyra", "Gutiérrez", "Gutierrez",
-  "Giménez", "Gimenez", "Molina", "Silva", "Castro", "Rojas", "Ortiz", "Núñez", "Nuñez", "Luna",
-  "Juárez", "Juarez", "Cabrera", "Ríos", "Rios", "Morales", "Rossi", "Ferrari", "Bianchi", "Fontana"
-];
-
-const COMMON_FIRSTNAMES = [
-  "Juan", "Carlos", "María", "Maria", "José", "Jose", "Alejandro", "Martín", "Martin", "Pablo",
-  "Diego", "Javier", "Facundo", "Nicolás", "Nicolas", "Federico", "Santiago", "Ignacio", "Lucas",
-  "Agustín", "Agustin", "Gonzalo", "Mariano", "Esteban", "Lucía", "Lucia", "Camila", "Florencia",
-  "Paula", "Ana", "Laura", "Sofia", "Sofía", "Valeria", "Julieta", "Carolina", "Daniela", "Micaela",
-  "Guillermo", "Gustavo", "Eduardo", "Marcelo", "Jorge", "Horacio", "Raúl", "Raul", "Fernando"
-];
-
+/**
+ * Localiza las entidades clasificadas por JEV dentro del texto para su resaltado y reemplazo.
+ * No utiliza listas de regex fijas: busca los términos específicos confirmados por JEV.
+ */
 export function extractEntitiesFromText(
   text: string,
   hasPersonFlag = false,
   hasChairFlag = false,
-  hasInsultFlag = false
+  hasInsultFlag = false,
+  identifiedPersonName?: string,
+  identifiedChairName?: string,
+  identifiedInsult?: string
 ): EntitySpan[] {
   if (!text) return [];
 
   const entities: EntitySpan[] = [];
+  const textLower = text.toLowerCase();
 
-  // 1. Person Names (PER)
-  // Pattern A: Title + Capitalized Name(s)
-  const patternTitleName = new RegExp(`\\b(${TITLES_REGEX})\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)`, 'gi');
-  let match: RegExpExecArray | null;
-  while ((match = patternTitleName.exec(text)) !== null) {
-    entities.push({
-      type: 'PER',
-      label: 'Persona / Docente',
-      text: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-      confidence: 0.95
-    });
-  }
+  function findAndAddSpan(term: string | undefined, type: 'PER' | 'CATEDRA' | 'INSULTO', label: string, conf = 0.98) {
+    if (!term || term === 'ninguno' || term === 'ninguna' || term.trim().length < 2) return;
+    const cleanTerm = term.trim();
+    const cleanLower = cleanTerm.toLowerCase();
+    
+    let searchStart = 0;
+    while (searchStart < textLower.length) {
+      const idx = textLower.indexOf(cleanLower, searchStart);
+      if (idx === -1) break;
 
-  // Pattern B: "el profe [Nombre]", "la docente [Nombre]"
-  const patternDocente = /\b(?:el\s+profe|la\s+profe|el\s+docente|la\s+docente|el\s+titular|la\s+titular)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\b/gi;
-  while ((match = patternDocente.exec(text)) !== null) {
-    entities.push({
-      type: 'PER',
-      label: 'Persona / Docente',
-      text: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-      confidence: 0.92
-    });
-  }
-
-  // Pattern C: Firstname + Surname
-  const firstnamesRegex = new RegExp(`\\b(${COMMON_FIRSTNAMES.join('|')})\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\\b`, 'g');
-  while ((match = firstnamesRegex.exec(text)) !== null) {
-    entities.push({
-      type: 'PER',
-      label: 'Persona (PER)',
-      text: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-      confidence: 0.90
-    });
-  }
-
-  // If Jev flagged person name, match surnames
-  if (hasPersonFlag) {
-    const surnamesRegex = new RegExp(`\\b(${COMMON_SURNAMES.join('|')})\\b`, 'gi');
-    while ((match = surnamesRegex.exec(text)) !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
-      if (!entities.some(e => e.start <= start && end <= e.end)) {
+      // Verificar que no se superponga con una entidad ya agregada
+      const end = idx + cleanTerm.length;
+      const overlaps = entities.some(e => !(end <= e.start || idx >= e.end));
+      if (!overlaps) {
         entities.push({
-          type: 'PER',
-          label: 'Apellido / Docente',
-          text: match[0],
-          start,
+          type,
+          label,
+          text: text.slice(idx, end),
+          start: idx,
           end,
-          confidence: 0.85
+          confidence: conf
         });
       }
+      searchStart = idx + cleanTerm.length;
     }
   }
 
-  // 2. Cátedras / Materias
-  const patternCatedraExplicit = /\b(?:cátedra|catedra|materia|asignatura|curso|taller|laboratorio)\s+(?:de\s+)?([A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s]{3,30}?)(?=[,.;\n]|\s+(?:es|fue|no|tiene|con|del|de|y|pero)\b)/gi;
-  while ((match = patternCatedraExplicit.exec(text)) !== null) {
-    entities.push({
-      type: 'CATEDRA',
-      label: 'Cátedra / Materia',
-      text: match[0].trim(),
-      start: match.index,
-      end: match.index + match[0].trim().length,
-      confidence: 0.90
-    });
-  }
-
-  for (const chairPat of COMMON_CHAIRS) {
-    const reg = new RegExp(`\\b${chairPat}\\b`, 'gi');
-    while ((match = reg.exec(text)) !== null) {
-      entities.push({
-        type: 'CATEDRA',
-        label: 'Cátedra Específica',
-        text: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-        confidence: 0.88
-      });
+  // 1. Persona identificada por JEV
+  if (hasPersonFlag) {
+    if (identifiedPersonName && identifiedPersonName !== 'ninguno') {
+      findAndAddSpan(identifiedPersonName, 'PER', 'Persona / Docente', 0.98);
     }
   }
 
-  // 3. Insultos / Lenguaje Inapropiado
-  for (const insultPat of INSULT_TERMS) {
-    const reg = new RegExp(`\\b${insultPat}\\b`, 'gi');
-    while ((match = reg.exec(text)) !== null) {
-      entities.push({
-        type: 'INSULTO',
-        label: 'Lenguaje Inapropiado',
-        text: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-        confidence: 0.95
-      });
+  // 2. Cátedra / Materia identificada por JEV
+  if (hasChairFlag) {
+    if (identifiedChairName && identifiedChairName !== 'ninguna') {
+      findAndAddSpan(identifiedChairName, 'CATEDRA', 'Cátedra / Materia', 0.95);
     }
   }
 
-  // Deduplicate overlapping spans
+  // 3. Insulto identificado por JEV
+  if (hasInsultFlag) {
+    if (identifiedInsult && identifiedInsult !== 'ninguno') {
+      findAndAddSpan(identifiedInsult, 'INSULTO', 'Lenguaje Inapropiado', 0.95);
+    }
+  }
+
+  // Deduplicar spans superpuestos
   entities.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
   const deduped: EntitySpan[] = [];
   let lastEnd = -1;
@@ -247,19 +135,19 @@ export function generateAnonymizedAndHighlighted(
       perCounter++;
       anonParts.push(maskPer ? rep : origChunk);
       htmlParts.push(
-        `<mark class="entity-badge entity-per" data-type="PER" title="Persona identificada: ${origChunk}">${origChunk}<small>PER</small></mark>`
+        `<mark class="entity-badge entity-per" data-type="PER" title="Persona identificada por JEV: ${origChunk}">${origChunk}<small>PER</small></mark>`
       );
     } else if (ent.type === 'CATEDRA') {
       const rep = chairPlaceholder.includes('_') ? `${chairPlaceholder}_${chairCounter}` : chairPlaceholder;
       chairCounter++;
       anonParts.push(maskChair ? rep : origChunk);
       htmlParts.push(
-        `<mark class="entity-badge entity-chair" data-type="CATEDRA" title="Cátedra identificada: ${origChunk}">${origChunk}<small>CÁTEDRA</small></mark>`
+        `<mark class="entity-badge entity-chair" data-type="CATEDRA" title="Cátedra identificada por JEV: ${origChunk}">${origChunk}<small>CÁTEDRA</small></mark>`
       );
     } else if (ent.type === 'INSULTO') {
       anonParts.push(maskInsult ? insultPlaceholder : origChunk);
       htmlParts.push(
-        `<mark class="entity-badge entity-insult" data-type="INSULTO" title="Lenguaje inapropiado: ${origChunk}">${origChunk}<small>INSULTO</small></mark>`
+        `<mark class="entity-badge entity-insult" data-type="INSULTO" title="Lenguaje inapropiado clasificado por JEV: ${origChunk}">${origChunk}<small>INSULTO</small></mark>`
       );
     } else {
       anonParts.push(origChunk);

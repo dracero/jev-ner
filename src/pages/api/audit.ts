@@ -26,10 +26,15 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const auditResult = runSurveyAudit(rows, {
+    const precomputedJev = session?.processedRows && session.processedRows.length === rows.length
+      ? session.processedRows.map((r: any) => r.jev)
+      : undefined;
+
+    const auditResult = await runSurveyAudit(rows, {
       idColumn: id_column,
       textColumn: text_column,
-      sheetName: sheet_name || 'Comentarios 2026 1C'
+      sheetName: sheet_name || 'Comentarios 2026 1C',
+      precomputedJev
     });
 
     // If an export download is requested directly via POST

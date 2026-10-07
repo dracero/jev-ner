@@ -5,10 +5,20 @@ export interface JevSurveyResult {
   model: string;
   has_person_name: boolean;
   prob_person_name: number;
+  identified_person_name?: string;
   has_chair_reference: boolean;
   prob_chair_reference: number;
+  identified_chair_name?: string;
   has_insult: boolean;
   prob_insult: number;
+  identified_insult?: string;
+  has_arg_slang?: boolean;
+  prob_arg_slang?: number;
+  has_disrespect?: boolean;
+  prob_disrespect?: number;
+  has_political_gender_discrimination?: boolean;
+  prob_political_gender_discrimination?: number;
+  political_gender_category?: string;
   toxicity_score: number;
   primary_topic: string;
   recommended_action: string;
@@ -23,55 +33,145 @@ export function getJevApiKey(): string {
   return process.env.JEV_API_KEY || (import.meta as any).env?.JEV_API_KEY || '';
 }
 
-export const SURVEY_QUESTIONS = {
-  has_person_name: {
-    type: 'noul',
-    instructions: '¿El texto menciona nombres o apellidos de personas particulares (profesores, ayudantes, alumnos, directivos)?'
-  },
-  has_chair_reference: {
-    type: 'noul',
-    instructions: '¿El texto menciona una cátedra, materia, asignatura o departamento académico específico?'
-  },
-  has_insult: {
-    type: 'noul',
-    instructions: '¿El texto contiene insultos, agravios, descalificaciones agresivas, groserías o lenguaje vulgar/inapropiado?'
-  },
-  toxicity_level: {
-    type: 'score',
-    instructions: 'Nivel de severidad o agresividad del comentario del estudiante',
-    criteria: [
-      'Constructivo o neutral sin agresiones',
-      'Crítica moderada o descontento leve',
-      'Queja vehemente sin insultos graves',
-      'Ataque personal o falta de respeto',
-      'Insultos directos, agravios o violencia verbal explícita'
-    ]
-  },
-  primary_topic: {
-    type: 'choice',
-    instructions: 'Categoría o motivo principal del comentario',
-    criteria: {
-      docencia: 'Calidad pedagógica, trato o desempeño de profesores',
-      contenidos: 'Dificultad, temas, bibliografía o programa de la materia',
-      evaluaciones: 'Exámenes parciales, finales o corrección de trabajos',
-      organizacion: 'Horarios, comunicación, cupos o gestión de la cátedra',
-      infraestructura: 'Aulas, laboratorios, campus virtual o recursos',
-      agresion_personal: 'Agresión personal, agravios o descalificaciones directas',
-      positivo_general: 'Elogios, agradecimientos o experiencia satisfactoria'
-    }
-  },
-  recommended_action: {
-    type: 'choice',
-    instructions: 'Acción de moderación recomendada para publicación pública de la encuesta',
-    criteria: {
-      publicar_directo: 'Apto para publicar sin modificaciones (no tiene nombres, insultos ni datos sensibles)',
-      anonimizar_nombres: 'Contiene nombres de personas que deben ser protegidos/anonimizados',
-      anonimizar_catedra: 'Contiene mención de cátedra específica que debe anonimizarse',
-      censurar_insultos: 'Contiene insultos o lenguaje inapropiado que debe ser redactado',
-      descartar: 'Comentario no publicable por agresión severa, difamación o violencia'
+/**
+ * Extrae fragmentos y frases del texto sin regexes ni diccionarios fijos,
+ * para que TypeSafe JEV clasifique inteligentemente nombres, cátedras e insultos.
+ */
+export function extractTextChunks(text: string): string[] {
+  if (!text) return [];
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .map(w => w.replace(/[.,;:()¿?¡!"'«»]/g, '').trim())
+    .filter(w => w.length >= 2);
+
+  const chunks = new Set<string>();
+
+  // Palabras individuales
+  for (const w of words) {
+    chunks.add(w);
+  }
+
+  // Frases de 2 y 3 palabras consecutivas (ej. "Juan Perez", "Sistemas Operativos", "María Gómez")
+  for (let i = 0; i < words.length - 1; i++) {
+    chunks.add(`${words[i]} ${words[i + 1]}`);
+    if (i + 2 < words.length) {
+      chunks.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
     }
   }
-};
+
+  // Ordenar priorizando mayúsculas o longitud
+  const sorted = Array.from(chunks).sort((a, b) => {
+    const aCap = /^[A-ZÁÉÍÓÚÑ]/.test(a) ? 1 : 0;
+    const bCap = /^[A-ZÁÉÍÓÚÑ]/.test(b) ? 1 : 0;
+    return bCap - aCap || b.length - a.length;
+  });
+
+  return sorted.slice(0, 15);
+}
+
+export function buildSurveyQuestions(text: string): Record<string, any> {
+  const chunks = extractTextChunks(text);
+
+  const critPerson: Record<string, string> = { ninguno: 'No se menciona ninguna persona en particular' };
+  const critChair: Record<string, string> = { ninguna: 'No se menciona ninguna materia o cátedra' };
+  const critInsult: Record<string, string> = { ninguno: 'No contiene insultos ni términos ofensivos' };
+
+  for (const c of chunks) {
+    critPerson[c] = `Término del texto: "${c}"`;
+    critChair[c] = `Término del texto: "${c}"`;
+    critInsult[c] = `Término del texto: "${c}"`;
+  }
+
+  const questions: Record<string, any> = {
+    has_person_name: {
+      type: 'noul',
+      instructions: '¿El texto menciona nombres o apellidos de personas particulares (profesores, ayudantes, alumnos, directivos)?'
+    },
+    identified_person_name: {
+      type: 'choice',
+      instructions: '¿Cuál de las siguientes opciones corresponde al nombre o apellido de la persona mencionada?',
+      criteria: critPerson
+    },
+    has_chair_reference: {
+      type: 'noul',
+      instructions: '¿El texto menciona una cátedra, materia o asignatura específica?'
+    },
+    identified_chair_name: {
+      type: 'choice',
+      instructions: '¿Cuál de las siguientes opciones es la cátedra o materia mencionada?',
+      criteria: critChair
+    },
+    has_insult: {
+      type: 'noul',
+      instructions: '¿El texto contiene insultos, agravios, descalificaciones agresivas o lenguaje vulgar?'
+    },
+    identified_insult: {
+      type: 'choice',
+      instructions: '¿Cuál es el insulto o término ofensivo presente en el texto?',
+      criteria: critInsult
+    },
+    has_arg_slang: {
+      type: 'noul',
+      instructions: '¿El texto contiene términos de jerga o modismos argentinos descalificadores o agresivos (como pelotudo, forro, boludo, choto, sorete, conchudo, mierda, paja, etc.)?'
+    },
+    has_disrespect: {
+      type: 'noul',
+      instructions: '¿El texto reporta faltas de respeto, maltrato, descalificaciones o agresiones hacia o por parte de docentes o personas?'
+    },
+    has_political_gender_discrimination: {
+      type: 'noul',
+      instructions: '¿El texto contiene contenido de política partidaria, militancia, discriminación o cuestiones de género / acoso?'
+    },
+    political_gender_category: {
+      type: 'choice',
+      instructions: 'Si el texto contiene temática de política, discriminación o género, ¿cuál es la categoría principal?',
+      criteria: {
+        ninguna: 'No contiene ninguna de estas temáticas',
+        politica: 'Política partidaria, militancia o adoctrinamiento',
+        discriminacion: 'Discriminación por nacionalidad, origen o aspecto',
+        genero: 'Cuestiones de género, acoso o trato machista/sexista'
+      }
+    },
+    toxicity_level: {
+      type: 'score',
+      instructions: 'Nivel de severidad o agresividad del comentario del estudiante',
+      criteria: [
+        'Constructivo o neutral sin agresiones',
+        'Crítica moderada o descontento leve',
+        'Queja vehemente sin insultos graves',
+        'Ataque personal o falta de respeto',
+        'Insultos directos, agravios o violencia verbal explícita'
+      ]
+    },
+    primary_topic: {
+      type: 'choice',
+      instructions: 'Categoría o motivo principal del comentario',
+      criteria: {
+        docencia: 'Calidad pedagógica, trato o desempeño de profesores',
+        contenidos: 'Dificultad, temas, bibliografía o programa de la materia',
+        evaluaciones: 'Exámenes parciales, finales o corrección de trabajos',
+        organizacion: 'Horarios, comunicación, cupos o gestión de la cátedra',
+        infraestructura: 'Aulas, laboratorios, campus virtual o recursos',
+        agresion_personal: 'Agresión personal, agravios o descalificaciones directas',
+        positivo_general: 'Elogios, agradecimientos o experiencia satisfactoria'
+      }
+    },
+    recommended_action: {
+      type: 'choice',
+      instructions: 'Acción de moderación recomendada para publicación pública de la encuesta',
+      criteria: {
+        publicar_directo: 'Apto para publicar sin modificaciones (no tiene nombres, insultos ni datos sensibles)',
+        anonimizar_nombres: 'Contiene nombres de personas que deben ser protegidos/anonimizados',
+        anonimizar_catedra: 'Contiene mención de cátedra específica que debe anonimizarse',
+        censurar_insultos: 'Contiene insultos o lenguaje inapropiado que debe ser redactado',
+        descartar: 'Comentario no publicable por agresión severa, difamación o violencia'
+      }
+    }
+  };
+
+  return questions;
+}
 
 export async function analyzeSurveyComment(text: string): Promise<JevSurveyResult> {
   const apiKey = getJevApiKey();
@@ -88,6 +188,13 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
       prob_chair_reference: 0.0,
       has_insult: false,
       prob_insult: 0.0,
+      has_arg_slang: false,
+      prob_arg_slang: 0.0,
+      has_disrespect: false,
+      prob_disrespect: 0.0,
+      has_political_gender_discrimination: false,
+      prob_political_gender_discrimination: 0.0,
+      political_gender_category: 'ninguna',
       toxicity_score: 1.0,
       primary_topic: 'positivo_general',
       recommended_action: 'publicar_directo'
@@ -95,6 +202,8 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
   }
 
   try {
+    const questions = buildSurveyQuestions(text.trim());
+
     const res = await fetch('https://api.typesafe.ai/v1/systemone', {
       method: 'POST',
       headers: {
@@ -104,7 +213,7 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
       body: JSON.stringify({
         model: 'jev-latest',
         state: text.trim(),
-        questions: SURVEY_QUESTIONS
+        questions
       })
     });
 
@@ -119,19 +228,36 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
     const probPerson = answers.has_person_name?.noul ?? 0.0;
     const probChair = answers.has_chair_reference?.noul ?? 0.0;
     const probInsult = answers.has_insult?.noul ?? 0.0;
+    const probArgSlang = answers.has_arg_slang?.noul ?? 0.0;
+    const probDisrespect = answers.has_disrespect?.noul ?? 0.0;
+    const probPolGender = answers.has_political_gender_discrimination?.noul ?? 0.0;
+    const polGenderCategory = answers.political_gender_category?.choice || 'ninguna';
+
+    let identifiedPersonName: string | undefined = undefined;
+    if (answers.identified_person_name && answers.identified_person_name.choice !== 'ninguno') {
+      identifiedPersonName = answers.identified_person_name.choice;
+    }
+
+    let identifiedChairName: string | undefined = undefined;
+    if (answers.identified_chair_name && answers.identified_chair_name.choice !== 'ninguna') {
+      identifiedChairName = answers.identified_chair_name.choice;
+    }
+
+    let identifiedInsult: string | undefined = undefined;
+    if (answers.identified_insult && answers.identified_insult.choice !== 'ninguno') {
+      identifiedInsult = answers.identified_insult.choice;
+    }
 
     const toxAnswer = answers.toxicity_level;
     const rawTox = toxAnswer?.score ?? 0.0;
-    // Scale 0-4 to 1-5
     const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
 
     let primaryTopic = answers.primary_topic?.choice || 'docencia';
     let recommendedAction = answers.recommended_action?.choice || 'publicar_directo';
 
-    // Calibrated thresholds
-    if (probInsult >= 0.7 || normalizedTox >= 4.0) {
+    if (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8) {
       recommendedAction = normalizedTox >= 4.5 ? 'descartar' : 'censurar_insultos';
-    } else if (probPerson >= 0.65) {
+    } else if (probPerson >= 0.5) {
       recommendedAction = 'anonimizar_nombres';
     } else if (probChair >= 0.7 && recommendedAction === 'publicar_directo') {
       recommendedAction = 'anonimizar_catedra';
@@ -141,10 +267,20 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
       model: data.model || 'jev-1.13.0',
       has_person_name: probPerson >= 0.5,
       prob_person_name: Math.round(probPerson * 1000) / 1000,
+      identified_person_name: identifiedPersonName,
       has_chair_reference: probChair >= 0.5,
       prob_chair_reference: Math.round(probChair * 1000) / 1000,
+      identified_chair_name: identifiedChairName,
       has_insult: probInsult >= 0.5,
       prob_insult: Math.round(probInsult * 1000) / 1000,
+      identified_insult: identifiedInsult,
+      has_arg_slang: probArgSlang >= 0.5,
+      prob_arg_slang: Math.round(probArgSlang * 1000) / 1000,
+      has_disrespect: probDisrespect >= 0.5,
+      prob_disrespect: Math.round(probDisrespect * 1000) / 1000,
+      has_political_gender_discrimination: probPolGender >= 0.5,
+      prob_political_gender_discrimination: Math.round(probPolGender * 1000) / 1000,
+      political_gender_category: polGenderCategory,
       toxicity_score: normalizedTox,
       primary_topic: primaryTopic,
       recommended_action: recommendedAction,

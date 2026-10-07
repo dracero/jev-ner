@@ -1,4 +1,7 @@
 // Motor de Auditoría y Filtros Específicos para Encuestas Estudiantiles
+// Clasificación 100% realizada por TypeSafe Jev System One (sin regex ni listas hardcodeadas)
+
+import { analyzeBatchComments, type JevSurveyResult } from './jevService';
 
 export interface AuditReportItem {
   id: string | number;
@@ -6,6 +9,7 @@ export interface AuditReportItem {
   detalles?: string;
   palabras?: number;
   categorias?: string[];
+  jev?: JevSurveyResult;
 }
 
 export interface SurveyAuditResult {
@@ -14,153 +18,27 @@ export interface SurveyAuditResult {
   idColumn: string;
   textColumn: string;
   
-  // 1. Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas
+  // 1. Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas (JEV)
   reportDisrespect: AuditReportItem[];
   
-  // 2. Nombres propios identificados
+  // 2. Nombres propios identificados (JEV)
   reportProperNames: AuditReportItem[];
   
-  // 3. Términos específicos de jerga argentina agresiva
+  // 3. Términos de la jerga argentina agresiva o insultos (JEV)
   reportArgSlang: AuditReportItem[];
   
-  // 4. Connotación política, discriminación y/o cuestiones de género (IDs uno por fila)
+  // 4. Connotación política, discriminación y/o cuestiones de género (JEV)
   idsPoliticalGenderDiscrimination: (string | number)[];
   reportPoliticalGenderDiscrimination: AuditReportItem[];
   
-  // 5. Más de 120 palabras con connotación negativa (IDs uno por fila)
+  // 5. Más de 120 palabras con connotación negativa (JEV)
   idsOver120WordsNegative: (string | number)[];
   reportOver120WordsNegative: AuditReportItem[];
 }
 
-// 1. Jerga argentina agresiva (masculino, femenino, singular, plural y variantes inclusivas)
-export const ARG_SLANG_PATTERNS = [
-  { term: 'paja', regex: /\bpajas?\b/i },
-  { term: 'pajero/a', regex: /\bpajer[oasx@]{1,2}\b/i },
-  { term: 'boludo/a', regex: /\bbolud[oasx@]{1,2}\b/i },
-  { term: 'forro/a', regex: /\bforr[oasx@]{1,2}\b/i },
-  { term: 'mierda', regex: /\bmierdas?\b/i },
-  { term: 'pelotudo/a', regex: /\bpelotud[oasx@]{1,2}\b/i },
-  { term: 'mogólico/a', regex: /\bmog[oó]lic[oasx@]{1,2}\b/i },
-  { term: 'estúpido/a', regex: /\best[uú]pid[oasx@]{1,2}\b/i },
-  { term: 'garca', regex: /\bgarcas?\b/i },
-  { term: 'choto/a', regex: /\bchot[oasx@]{1,2}\b/i },
-  { term: 'sorete', regex: /\bsoretes?\b/i },
-  { term: 'conchudo/a', regex: /\bconchud[oasx@]{1,2}\b/i },
-  { term: 'puto/a', regex: /\bput[oasx@]{1,2}\b/i }
-];
-
-// 2. Patrones de trato inapropiado, malicioso, faltas de respeto o hablar mal de personas
-export const DISRESPECT_PATTERNS = [
-  /\b(?:in[uú]til(?:es)?|chantas?|desastre|verg[uü]enza|miserable|sinverg[uü]enza|impostor(?:a)?)\b/i,
-  /\b(?:idiotas?|imb[eé]cil(?:es)?|tarad[oas]{1,2}|cretin[oas]{1,2}|basura|lacra)\b/i,
-  /\b(?:trata como|nos trata|me trata|hizo llorar|humill[oó]|agresiv[oas]{1,2}|maltrat[oó]|violencia|maltrata)\b/i,
-  /\b(?:cero paciencia|soberbi[oas]{1,2}|arrogante|sobrador(?:a)?|prepotent[ea]|acosador(?:a)?)\b/i,
-  /\b(?:no explica nada|le importa nada|se caga en|burla|burl[oó]|forre[aá]|discrimina)\b/i,
-  /\b(?:poco serio|muy poco serio|toma cualquier cosa|no vino a la mitad|no vino a clases|p[eé]simo trato)\b/i
-];
-
-// 3. Títulos y nombres propios (NER para encuestas)
-const TITLES_REGEX = "(?:Prof(?:esor|esora)?\\.?|Docente|Ayudante|Titular|Adjunt[oa]|JTP|Ing(?:eniero|eniera)?\\.?|Lic(?:enciad[oa])?\\.?|Dr[a]?\\.?)";
-const COMMON_NAMES = [
-  "Juan", "Carlos", "María", "Maria", "José", "Jose", "Alejandro", "Martín", "Martin", "Pablo",
-  "Diego", "Javier", "Facundo", "Nicolás", "Nicolas", "Federico", "Santiago", "Ignacio", "Lucas",
-  "Agustín", "Agustin", "Gonzalo", "Mariano", "Esteban", "Lucía", "Lucia", "Camila", "Florencia",
-  "Paula", "Ana", "Laura", "Sofia", "Sofía", "Valeria", "Julieta", "Carolina", "Daniela", "Micaela",
-  "Guillermo", "Gustavo", "Eduardo", "Marcelo", "Jorge", "Horacio", "Raúl", "Raul", "Fernando"
-];
-const COMMON_SURNAMES = [
-  "González", "Gonzalez", "Rodríguez", "Rodriguez", "Gómez", "Gomez", "Fernández", "Fernandez",
-  "López", "Lopez", "Díaz", "Diaz", "Martínez", "Martinez", "Pérez", "Perez", "García", "Garcia",
-  "Sánchez", "Sanchez", "Romero", "Sosa", "Álvarez", "Alvarez", "Torres", "Ruiz", "Ramírez", "Ramirez",
-  "Flores", "Benítez", "Benitez", "Acosta", "Medina", "Herrera", "Aguirre", "Pereyra", "Gutiérrez", "Gutierrez",
-  "Giménez", "Gimenez", "Molina", "Silva", "Castro", "Rojas", "Ortiz", "Núñez", "Nuñez", "Luna",
-  "Juárez", "Juarez", "Cabrera", "Ríos", "Rios", "Morales", "Rossi", "Ferrari", "Bianchi", "Fontana"
-];
-
-const PROPER_NAME_PATTERNS = [
-  new RegExp(`\\b${TITLES_REGEX}\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)`, 'g'),
-  new RegExp(`\\b(?:${COMMON_NAMES.join('|')})\\s+(?:${COMMON_SURNAMES.join('|')})\\b`, 'g'),
-  new RegExp(`\\b${TITLES_REGEX}\\s+(?:${COMMON_SURNAMES.join('|')})\\b`, 'g')
-];
-
-// 4. Política, Discriminación y Cuestiones de Género
-export const POLITICAL_PATTERNS = [
-  /\b(?:pol[ií]tica?|adoctrinamiento|partidari[oas]{1,2}|militan(?:te|cia)|la c[aá]mpora|c[aá]mpora)\b/i,
-  /\b(?:kirchneris(?:ta|mo)|peronis(?:ta|mo)|libertari[oas]{1,2}|milei|cristina|macri|marxismo|comunismo)\b/i,
-  /\b(?:zurd[oas]{1,2}|fach[oas]{1,2}|gorilas?|frente de izquierda|centro de estudiantes|elecciones)\b/i
-];
-
-export const DISCRIMINATION_PATTERNS = [
-  /\b(?:discriminaci[oó]n|discrimina|xenofobi[ao]|racis(?:mo|ta)|clasista|capacitismo)\b/i,
-  /\b(?:bolivian[oas]{1,2}|paraguay[oas]{1,2}|negro de mierda|villero|porteño de mierda)\b/i,
-  /\b(?:discapacidad|retrasado|down|autista)\b/i
-];
-
-export const GENDER_PATTERNS = [
-  /\b(?:machis(?:mo|ta)|patriarcad[o]|misogin[ioa]|sexista|acoso sexual|acosador(?:a)?)\b/i,
-  /\b(?:feminazi|feminismo|ideolog[ií]a de g[eé]nero|transf[oó]b(?:ico|ia)|homof[oó]b(?:ico|ia))\b/i,
-  /\b(?:por ser mujer|por ser hombre|cuestiones? de g[eé]nero|lenguaje inclusivo|inclusivo)\b/i
-];
-
-// 5. Connotación negativa para textos largos (> 120 palabras)
-export const NEGATIVE_SENTIMENT_PATTERNS = [
-  /\b(?:desastre|p[eé]simo|terrible|mal[ií]sim[oa]|inaceptable|in[uú]til|verg[uü]enza|estafa)\b/i,
-  /\b(?:lamentable|decepcion(?:ante)?|fracaso|incompetente|horrible|odio|bronca|indignaci[oó]n)\b/i,
-  /\b(?:abuso|maltrato|falta de respeto|prepotencia|arbitrari[oa]|intolerable|desorganizaci[oó]n)\b/i,
-  /\b(?:abandono|desatenci[oó]n|antipedag[oó]gico|denunciar|cero empat[ií]a)\b/i
-];
-
 export function countWords(text: string): number {
   if (!text) return 0;
   return text.trim().split(/\s+/).filter(w => w.length > 0).length;
-}
-
-export function extractProperNames(text: string): string[] {
-  if (!text) return [];
-  const found = new Set<string>();
-  for (const pat of PROPER_NAME_PATTERNS) {
-    pat.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pat.exec(text)) !== null) {
-      found.add(match[0].trim());
-    }
-  }
-  return Array.from(found);
-}
-
-export function extractArgSlang(text: string): string[] {
-  if (!text) return [];
-  const found: string[] = [];
-  for (const item of ARG_SLANG_PATTERNS) {
-    if (item.regex.test(text)) {
-      found.push(item.term);
-    }
-  }
-  return found;
-}
-
-export function hasDisrespect(text: string): boolean {
-  if (!text) return false;
-  if (extractArgSlang(text).length > 0) return true;
-  return DISRESPECT_PATTERNS.some(p => p.test(text));
-}
-
-export function classifyPoliticalGenderDiscrimination(text: string): { matches: boolean; categories: string[] } {
-  if (!text) return { matches: false, categories: [] };
-  const categories: string[] = [];
-  if (POLITICAL_PATTERNS.some(p => p.test(text))) categories.push('Política');
-  if (DISCRIMINATION_PATTERNS.some(p => p.test(text))) categories.push('Discriminación');
-  if (GENDER_PATTERNS.some(p => p.test(text))) categories.push('Cuestiones de Género');
-  return {
-    matches: categories.length > 0,
-    categories
-  };
-}
-
-export function hasNegativeSentiment(text: string): boolean {
-  if (!text) return false;
-  if (hasDisrespect(text)) return true;
-  return NEGATIVE_SENTIMENT_PATTERNS.some(p => p.test(text));
 }
 
 export function detectIdColumn(columns: string[]): string {
@@ -174,14 +52,20 @@ export function detectIdColumn(columns: string[]): string {
   return columns[0] || 'id';
 }
 
-export function runSurveyAudit(
+/**
+ * Ejecuta la auditoría completa de encuestas estudiantiles utilizando TypeSafe JEV System One.
+ * Toda la clasificación semántica es ejecutada por JEV (cero regex).
+ */
+export async function runSurveyAudit(
   rows: Record<string, any>[],
   options: {
     idColumn?: string;
     textColumn?: string;
     sheetName?: string;
+    precomputedJev?: (JevSurveyResult | undefined)[];
+    concurrency?: number;
   } = {}
-): SurveyAuditResult {
+): Promise<SurveyAuditResult> {
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   const idCol = options.idColumn || detectIdColumn(columns);
   const textCol = options.textColumn || 'comentario';
@@ -195,16 +79,18 @@ export function runSurveyAudit(
   const idsOver120WordsNegative: (string | number)[] = [];
   const reportOver120WordsNegative: AuditReportItem[] = [];
 
+  const texts: string[] = [];
+  const rawIds: (string | number)[] = [];
+
   for (let idx = 0; idx < rows.length; idx++) {
     const row = rows[idx];
     const rawId = row[idCol] !== undefined && row[idCol] !== null && String(row[idCol]).trim() !== ''
       ? row[idCol]
       : (idx + 1);
-    
-    // Find text content
+    rawIds.push(rawId);
+
     let comment = String(row[textCol] || '').trim();
     if (!comment) {
-      // Fallback to first non-empty text column
       for (const col of columns) {
         if (col !== idCol && typeof row[col] === 'string' && row[col].trim().length > 5) {
           comment = row[col].trim();
@@ -212,59 +98,108 @@ export function runSurveyAudit(
         }
       }
     }
+    texts.push(comment);
+  }
+
+  // Obtener clasificación de JEV
+  let jevResults: (JevSurveyResult | undefined)[] = options.precomputedJev || [];
+  if (!jevResults || jevResults.length !== rows.length || jevResults.some(j => !j || j.model === 'error')) {
+    jevResults = await analyzeBatchComments(texts, options.concurrency || 5);
+  }
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const comment = texts[idx];
+    const rawId = rawIds[idx];
+    const jev = jevResults[idx] || {
+      model: 'none',
+      has_person_name: false,
+      prob_person_name: 0,
+      has_chair_reference: false,
+      prob_chair_reference: 0,
+      has_insult: false,
+      prob_insult: 0,
+      toxicity_score: 1.0,
+      primary_topic: 'otro',
+      recommended_action: 'publicar_directo'
+    };
 
     if (!comment) continue;
 
-    // 1. Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal
-    if (hasDisrespect(comment)) {
+    // 1. Tratos inapropiados, insultos o hablar mal (JEV)
+    const isDisrespectful = (jev.has_disrespect ?? false) ||
+      jev.has_insult ||
+      jev.toxicity_score >= 3.0 ||
+      jev.primary_topic === 'agresion_personal';
+
+    if (isDisrespectful) {
+      let detalle = 'Trato indebido / Falta de respeto clasificado por JEV';
+      if (jev.has_insult) detalle = 'Insultos o agravios clasificados por JEV';
+      else if (jev.toxicity_score >= 4.0) detalle = `Agresión severa (Toxicidad: ${jev.toxicity_score}/5)`;
+      else if (jev.primary_topic === 'agresion_personal') detalle = 'Ataque personal directo clasificado por JEV';
+
       reportDisrespect.push({
         id: rawId,
         comentario: comment,
-        detalles: 'Reporta falta de respeto, descalificación docente o trato indebido'
+        detalles: detalle,
+        jev
       });
     }
 
-    // 2. Nombres propios identificados
-    const names = extractProperNames(comment);
-    if (names.length > 0) {
+    // 2. Nombres propios identificados (JEV)
+    if (jev.has_person_name) {
+      const nombreDetectado = jev.identified_person_name && jev.identified_person_name !== 'ninguno'
+        ? jev.identified_person_name
+        : 'Persona identificada por JEV';
+
       reportProperNames.push({
         id: rawId,
         comentario: comment,
-        detalles: names.join(', ')
+        detalles: nombreDetectado,
+        jev
       });
     }
 
-    // 3. Términos de la jerga argentina agresiva
-    const slangMatches = extractArgSlang(comment);
-    if (slangMatches.length > 0) {
+    // 3. Términos de la jerga argentina agresiva o insultos (JEV)
+    if ((jev.has_arg_slang ?? false) || jev.has_insult) {
+      const insultoDetectado = jev.identified_insult && jev.identified_insult !== 'ninguno'
+        ? jev.identified_insult
+        : 'Insulto / Lenguaje agresivo clasificado por JEV';
+
       reportArgSlang.push({
         id: rawId,
         comentario: comment,
-        detalles: slangMatches.join(', ')
+        detalles: insultoDetectado,
+        jev
       });
     }
 
-    // 4. Connotación política, discriminación y/o cuestiones de género
-    const polGender = classifyPoliticalGenderDiscrimination(comment);
-    if (polGender.matches) {
+    // 4. Connotación política, discriminación y/o cuestiones de género (JEV)
+    if (jev.has_political_gender_discrimination) {
       idsPoliticalGenderDiscrimination.push(rawId);
+      const cat = jev.political_gender_category && jev.political_gender_category !== 'ninguna'
+        ? jev.political_gender_category
+        : 'Política / Discriminación / Género';
+      
       reportPoliticalGenderDiscrimination.push({
         id: rawId,
         comentario: comment,
-        categorias: polGender.categories,
-        detalles: polGender.categories.join(' / ')
+        categorias: [cat],
+        detalles: cat,
+        jev
       });
     }
 
-    // 5. Comentarios de más de 120 palabras con connotación negativa
+    // 5. Comentarios de más de 120 palabras con connotación negativa (JEV)
     const wordsCount = countWords(comment);
-    if (wordsCount > 120 && hasNegativeSentiment(comment)) {
+    const isNegative = jev.toxicity_score >= 2.5 || (jev.has_disrespect ?? false) || jev.has_insult;
+    if (wordsCount > 120 && isNegative) {
       idsOver120WordsNegative.push(rawId);
       reportOver120WordsNegative.push({
         id: rawId,
         comentario: comment,
         palabras: wordsCount,
-        detalles: `${wordsCount} palabras (connotación negativa)`
+        detalles: `${wordsCount} palabras (Severidad JEV: ${jev.toxicity_score}/5)`,
+        jev
       });
     }
   }

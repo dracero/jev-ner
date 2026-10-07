@@ -1,145 +1,180 @@
 import fs from 'fs';
 import path from 'path';
 import XLSX from 'xlsx';
-
-// 1. Detección de términos de jerga argentina solicitados (masculino/femenino/singular/plural)
-const ARG_INSULTS = [
-  { term: 'paja', regex: /\bpajas?\b/i },
-  { term: 'pajero/a', regex: /\bpajer[oasx@]{1,2}\b/i },
-  { term: 'boludo/a', regex: /\bbolud[oasx@]{1,2}\b/i },
-  { term: 'forro/a', regex: /\bforr[oasx@]{1,2}\b/i },
-  { term: 'mierda', regex: /\bmierdas?\b/i },
-  { term: 'pelotudo/a', regex: /\bpelotud[oasx@]{1,2}\b/i },
-  { term: 'mogolico/a', regex: /\bmog[oó]lic[oasx@]{1,2}\b/i },
-  { term: 'estupido/a', regex: /\best[uú]pid[oasx@]{1,2}\b/i },
-  { term: 'garca', regex: /\bgarcas?\b/i },
-  { term: 'choto/a', regex: /\bchot[oasx@]{1,2}\b/i },
-  { term: 'sorete', regex: /\bsoretes?\b/i },
-  { term: 'conchudo/a', regex: /\bconchud[oasx@]{1,2}\b/i },
-  { term: 'puto/a', regex: /\bput[oasx@]{1,2}\b/i }
-];
-
-// 2. Detección de tratos inapropiados, maliciosos, faltas de respeto o hablar mal de personas
-const DISRESPECT_PATTERNS = [
-  /\b(?:in[uú]til(?:es)?|chantas?|desastre|verg[uü]enza|miserable|sinverg[uü]enza|impostor(?:a)?)\b/i,
-  /\b(?:idiotas?|imb[eé]cil(?:es)?|tarad[oas]{1,2}|cretin[oas]{1,2}|basura|lacra)\b/i,
-  /\b(?:trata como|nos trata|me trata|hizo llorar|humill[oó]|agresiv[oas]{1,2}|maltrat[oó]|violencia)\b/i,
-  /\b(?:cero paciencia|soberbi[oas]{1,2}|arrogante|sobrador(?:a)?|prepotent[ea]|acosador(?:a)?)\b/i,
-  /\b(?:no explica nada|le importa nada|se caga en|burla|burl[oó]|forre[aá]|discrimina)\b/i,
-  /\b(?:poco serio|muy poco serio|toma cualquier cosa|no vino a la mitad|no vino a clases)\b/i
-];
-
-// 3. Nombres propios (títulos académicos + nombres, o nombres y apellidos frecuentes)
-const TITLES_REGEX = "(?:Prof(?:esor|esora)?\\.?|Docente|Ayudante|Titular|Adjunt[oa]|JTP|Ing(?:eniero|eniera)?\\.?|Lic(?:enciad[oa])?\\.?|Dr[a]?\\.?)";
-const COMMON_NAMES = [
-  "Juan", "Carlos", "María", "Maria", "José", "Jose", "Alejandro", "Martín", "Martin", "Pablo",
-  "Diego", "Javier", "Facundo", "Nicolás", "Nicolas", "Federico", "Santiago", "Ignacio", "Lucas",
-  "Agustín", "Agustin", "Gonzalo", "Mariano", "Esteban", "Lucía", "Lucia", "Camila", "Florencia",
-  "Paula", "Ana", "Laura", "Sofia", "Sofía", "Valeria", "Julieta", "Carolina", "Daniela", "Micaela",
-  "Guillermo", "Gustavo", "Eduardo", "Marcelo", "Jorge", "Horacio", "Raúl", "Raul", "Fernando"
-];
-const COMMON_SURNAMES = [
-  "González", "Gonzalez", "Rodríguez", "Rodriguez", "Gómez", "Gomez", "Fernández", "Fernandez",
-  "López", "Lopez", "Díaz", "Diaz", "Martínez", "Martinez", "Pérez", "Perez", "García", "Garcia",
-  "Sánchez", "Sanchez", "Romero", "Sosa", "Álvarez", "Alvarez", "Torres", "Ruiz", "Ramírez", "Ramirez",
-  "Flores", "Benítez", "Benitez", "Acosta", "Medina", "Herrera", "Aguirre", "Pereyra", "Gutiérrez", "Gutierrez",
-  "Giménez", "Gimenez", "Molina", "Silva", "Castro", "Rojas", "Ortiz", "Núñez", "Nuñez", "Luna",
-  "Juárez", "Juarez", "Cabrera", "Ríos", "Rios", "Morales", "Rossi", "Ferrari", "Bianchi", "Fontana"
-];
-
-const PROPER_NAME_PATTERNS = [
-  // Título + Nombre(s) en mayúscula (ej: Profesor Juan Perez, Ing. Martínez, Dra. Gómez)
-  new RegExp(`\\b${TITLES_REGEX}\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)`, 'g'),
-  // Nombre y Apellido comunes con mayúscula
-  new RegExp(`\\b(?:${COMMON_NAMES.join('|')})\\s+(?:${COMMON_SURNAMES.join('|')})\\b`, 'g'),
-  // Título + Apellido común con mayúscula
-  new RegExp(`\\b${TITLES_REGEX}\\s+(?:${COMMON_SURNAMES.join('|')})\\b`, 'g')
-];
-
-// 4. Connotación política, discriminación y/o cuestiones de género
-const POLITICAL_TERMS = [
-  /\b(?:pol[ií]tica?|adoctrinamiento|partidari[oas]{1,2}|militan(?:te|cia)|campora|militan)\b/i,
-  /\b(?:kirchneris(?:ta|mo)|peronis(?:ta|mo)|libertari[oas]{1,2}|milei|cristina|macri|marxismo|comunismo)\b/i,
-  /\b(?:zurd[oas]{1,2}|fach[oas]{1,2}|gorilas?|frente de izquierda|centro de estudiantes)\b/i
-];
-
-const DISCRIMINATION_TERMS = [
-  /\b(?:discriminaci[oó]n|discrimina|xenofobi[ao]|racis(?:mo|ta)|clasista|capacitismo)\b/i,
-  /\b(?:bolivian[oas]{1,2}|paraguay[oas]{1,2}|negro de mierda|villero|porteño de mierda)\b/i,
-  /\b(?:discapacidad|retrasado|down)\b/i
-];
-
-const GENDER_TERMS = [
-  /\b(?:machis(?:mo|ta)|patriarcad[o]|misogin[ioa]|sexista|acoso sexual|acosador(?:a)?)\b/i,
-  /\b(?:feminazi|feminismo|ideolog[ií]a de g[eé]nero|transf[oó]b(?:ico|ia)|homof[oó]b(?:ico|ia))\b/i,
-  /\b(?:por ser mujer|por ser hombre|g[eé]nero|lenguaje inclusivo|inclusivo)\b/i
-];
-
-// 5. Connotación negativa para comentarios > 120 palabras
-const NEGATIVE_MARKERS = [
-  /\b(?:desastre|p[eé]simo|terrible|mal[ií]sim[oa]|inaceptable|in[uú]til|verg[uü]enza|estafa)\b/i,
-  /\b(?:lamentable|decepcion(?:ante)?|fracaso|incompetente|horrible|odio|bronca|indignaci[oó]n)\b/i,
-  /\b(?:abuso|maltrato|falta de respeto|prepotencia|arbitrari[oa]|intolerable|desorganizaci[oó]n)\b/i
-];
+import dotenv from 'dotenv';
+dotenv.config();
 
 export function countWords(str) {
   if (!str) return 0;
   return str.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
-export function detectProperNames(text) {
+export function extractTextChunks(text) {
   if (!text) return [];
-  const found = new Set();
-  for (const pattern of PROPER_NAME_PATTERNS) {
-    pattern.lastIndex = 0;
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      found.add(match[0].trim());
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .map(w => w.replace(/[.,;:()¿?¡!"'«»]/g, '').trim())
+    .filter(w => w.length >= 2);
+
+  const chunks = new Set();
+  for (const w of words) chunks.add(w);
+  for (let i = 0; i < words.length - 1; i++) {
+    chunks.add(`${words[i]} ${words[i + 1]}`);
+    if (i + 2 < words.length) {
+      chunks.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
     }
   }
-  return Array.from(found);
+
+  const sorted = Array.from(chunks).sort((a, b) => {
+    const aCap = /^[A-ZÁÉÍÓÚÑ]/.test(a) ? 1 : 0;
+    const bCap = /^[A-ZÁÉÍÓÚÑ]/.test(b) ? 1 : 0;
+    return bCap - aCap || b.length - a.length;
+  });
+
+  return sorted.slice(0, 15);
 }
 
-export function detectArgInsults(text) {
-  if (!text) return [];
-  const found = [];
-  for (const item of ARG_INSULTS) {
-    if (item.regex.test(text)) {
-      found.push(item.term);
+export async function classifyWithJev(text, apiKey) {
+  if (!text || !text.trim() || !apiKey) {
+    return {
+      has_person_name: false,
+      identified_person_name: 'ninguno',
+      has_disrespect: false,
+      has_insult: false,
+      identified_insult: 'ninguno',
+      has_arg_slang: false,
+      has_political_gender_discrimination: false,
+      political_gender_category: 'ninguna',
+      toxicity_score: 1.0
+    };
+  }
+
+  const chunks = extractTextChunks(text);
+  const critPerson = { ninguno: 'No se menciona ninguna persona en particular' };
+  const critInsult = { ninguno: 'No contiene insultos ni términos ofensivos' };
+
+  for (const c of chunks) {
+    critPerson[c] = `Término del texto: "${c}"`;
+    critInsult[c] = `Término del texto: "${c}"`;
+  }
+
+  const questions = {
+    has_person_name: {
+      type: 'noul',
+      instructions: '¿El texto menciona nombres o apellidos de personas particulares (profesores, ayudantes, alumnos, directivos)? No contar cargos genéricos sin nombre.'
+    },
+    identified_person_name: {
+      type: 'choice',
+      instructions: '¿Cuál de las siguientes opciones es el nombre o apellido de la persona mencionada?',
+      criteria: critPerson
+    },
+    has_insult: {
+      type: 'noul',
+      instructions: '¿El texto contiene insultos, agravios, groserías o descalificaciones agresivas explícitas?'
+    },
+    identified_insult: {
+      type: 'choice',
+      instructions: '¿Cuál es el insulto o término agresivo presente en el texto?',
+      criteria: critInsult
+    },
+    has_arg_slang: {
+      type: 'noul',
+      instructions: '¿El texto contiene términos de jerga o modismos argentinos descalificadores o agresivos (como pelotudo, forro, boludo, choto, sorete, conchudo, mierda, paja, etc.)?'
+    },
+    has_disrespect: {
+      type: 'noul',
+      instructions: '¿El texto reporta faltas de respeto, descalificaciones, maltrato o hablar mal de personas?'
+    },
+    has_political_gender_discrimination: {
+      type: 'noul',
+      instructions: '¿El texto contiene contenido de política partidaria, militancia, discriminación o cuestiones de género / acoso?'
+    },
+    political_gender_category: {
+      type: 'choice',
+      instructions: 'Si contiene política, discriminación o género, ¿cuál es la categoría principal?',
+      criteria: {
+        ninguna: 'No contiene ninguna de estas temáticas',
+        politica: 'Política partidaria, militancia o adoctrinamiento',
+        discriminacion: 'Discriminación por nacionalidad, origen o aspecto',
+        genero: 'Cuestiones de género, acoso o trato machista/sexista'
+      }
+    },
+    toxicity_level: {
+      type: 'score',
+      instructions: 'Nivel de severidad o agresividad del comentario',
+      criteria: [
+        'Constructivo o neutral',
+        'Crítica moderada',
+        'Queja vehemente sin insultos',
+        'Ataque personal o falta de respeto',
+        'Insultos directos o violencia verbal'
+      ]
     }
-  }
-  return found;
-}
-
-export function detectDisrespect(text) {
-  if (!text) return false;
-  // Si contiene insultos de la jerga o patrones de trato inapropiado
-  if (detectArgInsults(text).length > 0) return true;
-  for (const pat of DISRESPECT_PATTERNS) {
-    if (pat.test(text)) return true;
-  }
-  return false;
-}
-
-export function detectPoliticalGenderDiscrimination(text) {
-  if (!text) return { matches: false, tags: [] };
-  const tags = [];
-  if (POLITICAL_TERMS.some(r => r.test(text))) tags.push('Política');
-  if (DISCRIMINATION_TERMS.some(r => r.test(text))) tags.push('Discriminación');
-  if (GENDER_TERMS.some(r => r.test(text))) tags.push('Género');
-  return {
-    matches: tags.length > 0,
-    tags
   };
+
+  try {
+    const res = await fetch('https://api.typesafe.ai/v1/systemone', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'jev-latest',
+        state: text.trim(),
+        questions
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`Jev API Error: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const answers = data.answers || {};
+
+    const probPerson = answers.has_person_name?.noul ?? 0.0;
+    const probInsult = answers.has_insult?.noul ?? 0.0;
+    const probArgSlang = answers.has_arg_slang?.noul ?? 0.0;
+    const probDisrespect = answers.has_disrespect?.noul ?? 0.0;
+    const probPolGender = answers.has_political_gender_discrimination?.noul ?? 0.0;
+    const polCategory = answers.political_gender_category?.choice || 'ninguna';
+    const identifiedName = answers.identified_person_name?.choice || 'ninguno';
+    const identifiedInsult = answers.identified_insult?.choice || 'ninguno';
+
+    const rawTox = answers.toxicity_level?.score ?? 0.0;
+    const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
+
+    return {
+      has_person_name: probPerson >= 0.5,
+      prob_person_name: probPerson,
+      identified_person_name: identifiedName,
+      has_insult: probInsult >= 0.5,
+      identified_insult: identifiedInsult,
+      has_arg_slang: probArgSlang >= 0.5,
+      has_disrespect: probDisrespect >= 0.5,
+      has_political_gender_discrimination: probPolGender >= 0.5,
+      political_gender_category: polCategory,
+      toxicity_score: normalizedTox
+    };
+  } catch (err) {
+    console.warn(`[WARN] Error llamando a Jev: ${err.message}`);
+    return {
+      has_person_name: false,
+      identified_person_name: 'ninguno',
+      has_disrespect: false,
+      has_insult: false,
+      identified_insult: 'ninguno',
+      has_arg_slang: false,
+      has_political_gender_discrimination: false,
+      political_gender_category: 'ninguna',
+      toxicity_score: 1.0
+    };
+  }
 }
 
-export function isNegativeSentiment(text) {
-  if (!text) return false;
-  if (detectDisrespect(text)) return true;
-  return NEGATIVE_MARKERS.some(r => r.test(text));
-}
-
-export function analyzeSurveyRows(rows, sheetName = 'Hoja') {
+export async function analyzeSurveyRows(rows, sheetName = 'Hoja', apiKey = process.env.JEV_API_KEY) {
   const result = {
     totalRows: rows.length,
     sheetName,
@@ -150,54 +185,68 @@ export function analyzeSurveyRows(rows, sheetName = 'Hoja') {
     req5_longNegative: []
   };
 
-  for (const row of rows) {
-    // Normalizar ID y comentario
-    const id = row.id_encuesta || row.ID || row.Id || row.id || row['#'] || row.Numero || '';
+  console.log(`[INFO] Clasificando ${rows.length} respuestas con TypeSafe JEV System One (100% libre de regex)...`);
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const id = row.id_encuesta || row.ID || row.Id || row.id || row['#'] || row.Numero || (i + 1);
     const comment = row.comentario || row.Comentario || row.comentarios || row.Comentarios || row.opinion || row.texto || row.Respuesta || row.respuesta || '';
 
     if (!comment) continue;
 
-    // 1. Tratos inapropiados, insultos, hablar mal de personas
-    if (detectDisrespect(comment)) {
+    const jev = await classifyWithJev(comment, apiKey);
+
+    // 1. Tratos inapropiados, insultos, hablar mal de personas (clasificado por JEV)
+    if (jev.has_disrespect || jev.has_insult || jev.toxicity_score >= 3.0) {
       result.req1_disrespect.push({
         id,
-        comentario: comment
+        comentario: comment,
+        detalles: jev.has_insult ? 'Insultos clasificados por JEV' : 'Falta de respeto / Trato indebido clasificado por JEV'
       });
     }
 
-    // 2. Nombres propios
-    const names = detectProperNames(comment);
-    if (names.length > 0) {
+    // 2. Nombres propios (clasificado por JEV)
+    if (jev.has_person_name) {
+      const nombre = jev.identified_person_name && jev.identified_person_name !== 'ninguno'
+        ? jev.identified_person_name
+        : 'Persona identificada por JEV';
+
       result.req2_properNames.push({
         id,
-        nombres: names.join(', '),
+        nombres: nombre,
         comentario: comment
       });
     }
 
-    // 3. Términos jerga argentina
-    const terms = detectArgInsults(comment);
-    if (terms.length > 0) {
+    // 3. Términos de jerga agresiva / insultos (clasificado por JEV)
+    if (jev.has_arg_slang || jev.has_insult) {
+      const insulto = jev.identified_insult && jev.identified_insult !== 'ninguno'
+        ? jev.identified_insult
+        : 'Insulto / jerga clasificada por JEV';
+
       result.req3_argTerms.push({
         id,
-        terminos: terms.join(', '),
+        terminos: insulto,
         comentario: comment
       });
     }
 
-    // 4. Connotación política, discriminación y/o cuestiones de género
-    const polGender = detectPoliticalGenderDiscrimination(comment);
-    if (polGender.matches) {
+    // 4. Connotación política, discriminación y/o cuestiones de género (clasificado por JEV)
+    if (jev.has_political_gender_discrimination) {
+      const cat = jev.political_gender_category && jev.political_gender_category !== 'ninguna'
+        ? jev.political_gender_category
+        : 'Política / Discriminación / Género';
+
       result.req4_polGenderDiscr.push({
         id,
-        categorias: polGender.tags.join(', '),
+        categorias: cat,
         comentario: comment
       });
     }
 
-    // 5. Más de 120 palabras con connotación negativa
+    // 5. Más de 120 palabras con connotación negativa (clasificado por JEV)
     const words = countWords(comment);
-    if (words > 120 && isNegativeSentiment(comment)) {
+    if (words > 120 && (jev.toxicity_score >= 2.5 || jev.has_disrespect || jev.has_insult)) {
       result.req5_longNegative.push({
         id,
         palabras: words,
@@ -212,7 +261,7 @@ export function analyzeSurveyRows(rows, sheetName = 'Hoja') {
 // Ejecución CLI directa
 if (import.meta.url === `file://${process.argv[1]}`) {
   const filePath = process.argv[2] || 'public/sample/encuestas_estudiantes_ejemplo.xlsx';
-  const targetSheet = process.argv[3] || 'Comentarios 2026 1C';
+  const targetSheet = process.argv[3] || 'Sheet1';
 
   console.log(`[INFO] Leyendo archivo: ${filePath}`);
   if (!fs.existsSync(filePath)) {
@@ -223,7 +272,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const wb = XLSX.readFile(filePath);
   console.log(`[INFO] Hojas disponibles: ${wb.SheetNames.join(', ')}`);
 
-  // Buscar hoja especificada o por coincidencia aproximada
   let matchedSheet = wb.SheetNames.find(s => s.trim().toLowerCase() === targetSheet.trim().toLowerCase());
   if (!matchedSheet) {
     matchedSheet = wb.SheetNames.find(s => s.toLowerCase().includes('2026') || s.toLowerCase().includes('comentario')) || wb.SheetNames[0];
@@ -233,87 +281,90 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const sheet = wb.Sheets[matchedSheet];
   const rows = XLSX.utils.sheet_to_json(sheet);
 
-  const results = analyzeSurveyRows(rows, matchedSheet);
+  const apiKey = process.env.JEV_API_KEY;
+  if (!apiKey) {
+    console.error('[ERROR] JEV_API_KEY no encontrada en .env');
+    process.exit(1);
+  }
 
-  console.log(`\n### 1. Tabla Exportable: Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas\n`);
-  console.log(`| ID | Comentario |`);
-  console.log(`| :--- | :--- |`);
-  if (results.req1_disrespect.length === 0) {
-    console.log(`| *Sin coincidencias* | - |`);
-  } else {
-    for (const r of results.req1_disrespect) {
-      console.log(`| **${r.id}** | ${r.comentario.replace(/\|/g, '\\|')} |`);
+  analyzeSurveyRows(rows, matchedSheet, apiKey).then(results => {
+    console.log(`\n### 1. Tabla Exportable: Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas (Clasificado por JEV)\n`);
+    console.log(`| ID | Comentario |`);
+    console.log(`| :--- | :--- |`);
+    if (results.req1_disrespect.length === 0) {
+      console.log(`| *Sin coincidencias* | - |`);
+    } else {
+      for (const r of results.req1_disrespect) {
+        console.log(`| **${r.id}** | ${r.comentario.replace(/\|/g, '\\|')} |`);
+      }
     }
-  }
 
-  console.log(`\n### 2. Tabla Exportable: IDs con nombres propios (Hoja: ${matchedSheet})\n`);
-  console.log(`| ID | Nombres Propios Detectados | Comentario |`);
-  console.log(`| :--- | :--- | :--- |`);
-  if (results.req2_properNames.length === 0) {
-    console.log(`| *Sin coincidencias* | - | - |`);
-  } else {
-    for (const r of results.req2_properNames) {
-      console.log(`| **${r.id}** | \`${r.nombres}\` | ${r.comentario.replace(/\|/g, '\\|')} |`);
+    console.log(`\n### 2. Tabla Exportable: IDs con nombres propios clasificados por JEV (Hoja: ${matchedSheet})\n`);
+    console.log(`| ID | Nombres Propios Identificados por JEV | Comentario |`);
+    console.log(`| :--- | :--- | :--- |`);
+    if (results.req2_properNames.length === 0) {
+      console.log(`| *Sin coincidencias* | - | - |`);
+    } else {
+      for (const r of results.req2_properNames) {
+        console.log(`| **${r.id}** | \`${r.nombres}\` | ${r.comentario.replace(/\|/g, '\\|')} |`);
+      }
     }
-  }
 
-  console.log(`\n### 3. Tabla Exportable: Comentarios con términos de jerga argentina agresiva\n`);
-  console.log(`*(paja, boludo/a, forro/a, mierda, pelotudo/a, mogólico/a, estúpido/a, garca, choto/a, sorete, conchudo/a, puto/a, pajero/a)*\n`);
-  console.log(`| ID | Término(s) Jerga Detectado(s) | Comentario |`);
-  console.log(`| :--- | :--- | :--- |`);
-  if (results.req3_argTerms.length === 0) {
-    console.log(`| *Sin coincidencias* | - | - |`);
-  } else {
-    for (const r of results.req3_argTerms) {
-      console.log(`| **${r.id}** | \`${r.terminos}\` | ${r.comentario.replace(/\|/g, '\\|')} |`);
+    console.log(`\n### 3. Tabla Exportable: Comentarios con términos de jerga agresiva o insultos clasificados por JEV\n`);
+    console.log(`| ID | Insulto / Término Clasificado por JEV | Comentario |`);
+    console.log(`| :--- | :--- | :--- |`);
+    if (results.req3_argTerms.length === 0) {
+      console.log(`| *Sin coincidencias* | - | - |`);
+    } else {
+      for (const r of results.req3_argTerms) {
+        console.log(`| **${r.id}** | \`${r.terminos}\` | ${r.comentario.replace(/\|/g, '\\|')} |`);
+      }
     }
-  }
 
-  console.log(`\n### 4. Lista de IDs con connotación política, discriminación y/o cuestiones de género (uno por fila)\n`);
-  if (results.req4_polGenderDiscr.length === 0) {
-    console.log(`*(Ningún ID coincide con estos criterios en las fuentes analizadas)*`);
-  } else {
-    for (const r of results.req4_polGenderDiscr) {
-      console.log(r.id);
+    console.log(`\n### 4. Lista de IDs con connotación política, discriminación y/o cuestiones de género clasificados por JEV\n`);
+    if (results.req4_polGenderDiscr.length === 0) {
+      console.log(`*(Ningún ID coincide con estos criterios en las fuentes analizadas)*`);
+    } else {
+      for (const r of results.req4_polGenderDiscr) {
+        console.log(r.id);
+      }
     }
-  }
 
-  console.log(`\n### 5. Lista de IDs con comentarios de más de 120 palabras con connotación negativa (uno por fila)\n`);
-  if (results.req5_longNegative.length === 0) {
-    console.log(`*(Ningún ID coincide con más de 120 palabras y connotación negativa en las fuentes analizadas)*`);
-  } else {
-    for (const r of results.req5_longNegative) {
-      console.log(r.id);
+    console.log(`\n### 5. Lista de IDs con comentarios de más de 120 palabras con connotación negativa clasificados por JEV\n`);
+    if (results.req5_longNegative.length === 0) {
+      console.log(`*(Ningún ID coincide con más de 120 palabras y connotación negativa en las fuentes analizadas)*`);
+    } else {
+      for (const r of results.req5_longNegative) {
+        console.log(r.id);
+      }
     }
-  }
 
-  // Generar archivos CSV exportables
-  const outDir = path.resolve('output_reportes');
-  if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
-  }
+    const outDir = path.resolve('output_reportes');
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir, { recursive: true });
+    }
 
-  const csvDisrespect = ['ID,Comentario'].concat(
-    results.req1_disrespect.map(r => `"${r.id}","${r.comentario.replace(/"/g, '""')}"`)
-  ).join('\n');
-  fs.writeFileSync(path.join(outDir, '1_tratos_inapropiados_insultos.csv'), csvDisrespect, 'utf-8');
+    const csvDisrespect = ['ID,Comentario'].concat(
+      results.req1_disrespect.map(r => `"${r.id}","${r.comentario.replace(/"/g, '""')}"`)
+    ).join('\n');
+    fs.writeFileSync(path.join(outDir, '1_tratos_inapropiados_insultos.csv'), csvDisrespect, 'utf-8');
 
-  const csvNames = ['ID,Nombres_Propios,Comentario'].concat(
-    results.req2_properNames.map(r => `"${r.id}","${r.nombres.replace(/"/g, '""')}","${r.comentario.replace(/"/g, '""')}"`)
-  ).join('\n');
-  fs.writeFileSync(path.join(outDir, '2_nombres_propios.csv'), csvNames, 'utf-8');
+    const csvNames = ['ID,Nombres_Propios,Comentario'].concat(
+      results.req2_properNames.map(r => `"${r.id}","${r.nombres.replace(/"/g, '""')}","${r.comentario.replace(/"/g, '""')}"`)
+    ).join('\n');
+    fs.writeFileSync(path.join(outDir, '2_nombres_propios.csv'), csvNames, 'utf-8');
 
-  const csvArg = ['ID,Terminos_Jerga,Comentario'].concat(
-    results.req3_argTerms.map(r => `"${r.id}","${r.terminos.replace(/"/g, '""')}","${r.comentario.replace(/"/g, '""')}"`)
-  ).join('\n');
-  fs.writeFileSync(path.join(outDir, '3_terminos_jerga_argentina.csv'), csvArg, 'utf-8');
+    const csvArg = ['ID,Terminos_Jerga,Comentario'].concat(
+      results.req3_argTerms.map(r => `"${r.id}","${r.terminos.replace(/"/g, '""')}","${r.comentario.replace(/"/g, '""')}"`)
+    ).join('\n');
+    fs.writeFileSync(path.join(outDir, '3_terminos_jerga_argentina.csv'), csvArg, 'utf-8');
 
-  const txtReq4 = results.req4_polGenderDiscr.map(r => String(r.id)).join('\n');
-  fs.writeFileSync(path.join(outDir, '4_ids_politica_discriminacion_genero.txt'), txtReq4, 'utf-8');
+    const txtReq4 = results.req4_polGenderDiscr.map(r => String(r.id)).join('\n');
+    fs.writeFileSync(path.join(outDir, '4_ids_politica_discriminacion_genero.txt'), txtReq4, 'utf-8');
 
-  const txtReq5 = results.req5_longNegative.map(r => String(r.id)).join('\n');
-  fs.writeFileSync(path.join(outDir, '5_ids_mas_120_palabras_negativas.txt'), txtReq5, 'utf-8');
+    const txtReq5 = results.req5_longNegative.map(r => String(r.id)).join('\n');
+    fs.writeFileSync(path.join(outDir, '5_ids_mas_120_palabras_negativas.txt'), txtReq5, 'utf-8');
 
-  console.log(`\n[OK] Reportes exportables guardados en la carpeta: ${outDir}/`);
-
+    console.log(`\n[OK] Reportes exportables guardados en la carpeta: ${outDir}/`);
+  });
 }
