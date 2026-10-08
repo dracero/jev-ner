@@ -117,5 +117,43 @@ jev-ner/
 
 En local (`.env`) o en Vercel Dashboard (**Project Settings > Environment Variables**):
 ```env
+# TypeSafe Jev System One
 JEV_API_KEY=tu_api_key_de_typesafe
+
+# Observabilidad & Trazas con LangSmith
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=tu_api_key_de_langsmith
+LANGSMITH_PROJECT=jev_ner_test
+
+# Compatibilidad LangChain / LangSmith V2
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+LANGCHAIN_API_KEY=tu_api_key_de_langsmith
+LANGCHAIN_PROJECT=jev_ner_test
 ```
+
+---
+
+## 📊 Observabilidad con LangSmith
+
+El sistema registra de forma jerárquica y en tiempo real el 100% de la actividad y trayectoria de TypeSafe Jev en LangSmith:
+
+1. **Invocaciones LLM (`jev_system_one_inference`)**:
+   - Schema de preguntas generado dinámicamente (`state` + `questions`).
+   - Respuestas brutas, distribuciones probabilísticas (`noul`, `choice`, `score`).
+   - Conteo de tokens (`input_tokens`, `output_tokens`) y latencia.
+
+2. **Cadenas de Clasificación & Moderación (`jev_analyze_survey_comment`)**:
+   - Detección de personas (PER/NER), cátedras y términos agresivos.
+   - Nivel de severidad/toxicidad (1 a 5), motivo temático y acción recomendada.
+
+3. **Pipelines de Auditoría y Procesamiento por Lotes**:
+   - `jev_batch_analysis`: métricas agregadas del dataset.
+   - `jev_survey_audit_pipeline`: conteos y categorizaciones de los 5 reportes institucionales.
+   - Scripts CLI (`scripts/analizar_encuestas.mjs`) sincronizados automáticamente.
+
+4. **Panel Web & Playground**:
+   - El header muestra el estado de conexión con LangSmith (`LangSmith: jev_ner_test ✓`).
+   - El playground de pruebas genera el link directo a la traza en cada evaluación.
+

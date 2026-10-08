@@ -1,8 +1,10 @@
 import type { APIRoute } from 'astro';
 import { runSurveyAudit } from '../../lib/surveyAuditor';
 import { getSession } from '../../lib/sessionStore';
+import { flushLangSmithTraces, buildLangSmithRunUrl } from '../../lib/langsmith';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -152,18 +154,27 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    // Flush LangSmith traces to guarantee delivery
+    await flushLangSmithTraces();
+
     // Default: return JSON result with all metrics and tables
     return new Response(
       JSON.stringify({
         success: true,
-        audit: auditResult
+        audit: auditResult,
+        langsmith: {
+          project: process.env.LANGSMITH_PROJECT || 'jev_ner_test',
+          url: buildLangSmithRunUrl()
+        }
       }),
       { headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
+    await flushLangSmithTraces();
     return new Response(
       JSON.stringify({ detail: err?.message || 'Error en auditoría' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };
+

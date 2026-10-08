@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { traceable, getCurrentRunTree } from './langsmith';
+
 export interface JevSurveyResult {
   model: string;
   has_person_name: boolean;
@@ -173,36 +175,17 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
   return questions;
 }
 
-export async function analyzeSurveyComment(text: string): Promise<JevSurveyResult> {
-  const apiKey = getJevApiKey();
-  if (!apiKey) {
-    throw new Error('JEV_API_KEY no encontrada en las variables de entorno.');
-  }
-
-  if (!text || !text.trim()) {
-    return {
-      model: 'none',
-      has_person_name: false,
-      prob_person_name: 0.0,
-      has_chair_reference: false,
-      prob_chair_reference: 0.0,
-      has_insult: false,
-      prob_insult: 0.0,
-      has_arg_slang: false,
-      prob_arg_slang: 0.0,
-      has_disrespect: false,
-      prob_disrespect: 0.0,
-      has_political_gender_discrimination: false,
-      prob_political_gender_discrimination: 0.0,
-      political_gender_category: 'ninguna',
-      toxicity_score: 1.0,
-      primary_topic: 'positivo_general',
-      recommended_action: 'publicar_directo'
-    };
-  }
-
-  try {
-    const questions = buildSurveyQuestions(text.trim());
+/**
+ * Ejecuta la llamada directa al motor TypeSafe JEV System One.
+ * Registrada como invocación 'llm' en LangSmith con schema, tokens y latencia.
+ */
+export const callJevSystemOne = traceable(
+  async function callJevSystemOne(
+    state: string,
+    questions: Record<string, any>,
+    apiKey: string
+  ): Promise<{ model?: string; answers?: Record<string, any>; usage?: { input_tokens: number; output_tokens: number } }> {
+    const runTree = getCurrentRunTree();
 
     const res = await fetch('https://api.typesafe.ai/v1/systemone', {
       method: 'POST',
@@ -212,7 +195,7 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
       },
       body: JSON.stringify({
         model: 'jev-latest',
-        state: text.trim(),
+        state: state.trim(),
         questions
       })
     });
@@ -223,101 +206,224 @@ export async function analyzeSurveyComment(text: string): Promise<JevSurveyResul
     }
 
     const data = await res.json();
-    const answers = data.answers || {};
 
-    const probPerson = answers.has_person_name?.noul ?? 0.0;
-    const probChair = answers.has_chair_reference?.noul ?? 0.0;
-    const probInsult = answers.has_insult?.noul ?? 0.0;
-    const probArgSlang = answers.has_arg_slang?.noul ?? 0.0;
-    const probDisrespect = answers.has_disrespect?.noul ?? 0.0;
-    const probPolGender = answers.has_political_gender_discrimination?.noul ?? 0.0;
-    const polGenderCategory = answers.political_gender_category?.choice || 'ninguna';
-
-    let identifiedPersonName: string | undefined = undefined;
-    if (answers.identified_person_name && answers.identified_person_name.choice !== 'ninguno') {
-      identifiedPersonName = answers.identified_person_name.choice;
+    if (runTree && data.usage) {
+      runTree.extra = {
+        ...runTree.extra,
+        metadata: {
+          ...runTree.extra?.metadata,
+          model: data.model || 'jev-latest',
+          input_tokens: data.usage.input_tokens,
+          output_tokens: data.usage.output_tokens,
+          total_tokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)
+        }
+      };
     }
 
-    let identifiedChairName: string | undefined = undefined;
-    if (answers.identified_chair_name && answers.identified_chair_name.choice !== 'ninguna') {
-      identifiedChairName = answers.identified_chair_name.choice;
-    }
-
-    let identifiedInsult: string | undefined = undefined;
-    if (answers.identified_insult && answers.identified_insult.choice !== 'ninguno') {
-      identifiedInsult = answers.identified_insult.choice;
-    }
-
-    const toxAnswer = answers.toxicity_level;
-    const rawTox = toxAnswer?.score ?? 0.0;
-    const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
-
-    let primaryTopic = answers.primary_topic?.choice || 'docencia';
-    let recommendedAction = answers.recommended_action?.choice || 'publicar_directo';
-
-    if (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8) {
-      recommendedAction = normalizedTox >= 4.5 ? 'descartar' : 'censurar_insultos';
-    } else if (probPerson >= 0.5) {
-      recommendedAction = 'anonimizar_nombres';
-    } else if (probChair >= 0.7 && recommendedAction === 'publicar_directo') {
-      recommendedAction = 'anonimizar_catedra';
-    }
-
-    return {
-      model: data.model || 'jev-1.13.0',
-      has_person_name: probPerson >= 0.5,
-      prob_person_name: Math.round(probPerson * 1000) / 1000,
-      identified_person_name: identifiedPersonName,
-      has_chair_reference: probChair >= 0.5,
-      prob_chair_reference: Math.round(probChair * 1000) / 1000,
-      identified_chair_name: identifiedChairName,
-      has_insult: probInsult >= 0.5,
-      prob_insult: Math.round(probInsult * 1000) / 1000,
-      identified_insult: identifiedInsult,
-      has_arg_slang: probArgSlang >= 0.5,
-      prob_arg_slang: Math.round(probArgSlang * 1000) / 1000,
-      has_disrespect: probDisrespect >= 0.5,
-      prob_disrespect: Math.round(probDisrespect * 1000) / 1000,
-      has_political_gender_discrimination: probPolGender >= 0.5,
-      prob_political_gender_discrimination: Math.round(probPolGender * 1000) / 1000,
-      political_gender_category: polGenderCategory,
-      toxicity_score: normalizedTox,
-      primary_topic: primaryTopic,
-      recommended_action: recommendedAction,
-      usage: data.usage
-    };
-  } catch (err: any) {
-    return {
-      model: 'error',
-      has_person_name: false,
-      prob_person_name: 0.0,
-      has_chair_reference: false,
-      prob_chair_reference: 0.0,
-      has_insult: false,
-      prob_insult: 0.0,
-      toxicity_score: 1.0,
-      primary_topic: 'error',
-      recommended_action: 'revisar_manual',
-      error: err?.message || 'Error desconocido'
-    };
+    return data;
+  },
+  {
+    name: 'jev_system_one_inference',
+    run_type: 'llm',
+    tags: ['typesafe-jev', 'system-one', 'ner', 'per', 'moderation']
   }
-}
+);
 
-export async function analyzeBatchComments(
-  texts: string[],
-  concurrency = 5
-): Promise<JevSurveyResult[]> {
-  const results: JevSurveyResult[] = new Array(texts.length);
-  let currentIndex = 0;
-
-  async function worker() {
-    while (currentIndex < texts.length) {
-      const idx = currentIndex++;
-      results[idx] = await analyzeSurveyComment(texts[idx]);
+/**
+ * Clasifica y analiza un comentario individual de encuesta mediante TypeSafe Jev System One.
+ * Traced como 'chain' en LangSmith conteniendo la inferencia del modelo y su resolución semántica.
+ */
+export const analyzeSurveyComment = traceable(
+  async function analyzeSurveyComment(text: string): Promise<JevSurveyResult> {
+    const runTree = getCurrentRunTree();
+    const apiKey = getJevApiKey();
+    if (!apiKey) {
+      throw new Error('JEV_API_KEY no encontrada en las variables de entorno.');
     }
-  }
 
-  const workers = Array.from({ length: Math.min(concurrency, texts.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
-}
+    if (!text || !text.trim()) {
+      return {
+        model: 'none',
+        has_person_name: false,
+        prob_person_name: 0.0,
+        has_chair_reference: false,
+        prob_chair_reference: 0.0,
+        has_insult: false,
+        prob_insult: 0.0,
+        has_arg_slang: false,
+        prob_arg_slang: 0.0,
+        has_disrespect: false,
+        prob_disrespect: 0.0,
+        has_political_gender_discrimination: false,
+        prob_political_gender_discrimination: 0.0,
+        political_gender_category: 'ninguna',
+        toxicity_score: 1.0,
+        primary_topic: 'positivo_general',
+        recommended_action: 'publicar_directo'
+      };
+    }
+
+    try {
+      const questions = buildSurveyQuestions(text.trim());
+      const data = await callJevSystemOne(text.trim(), questions, apiKey);
+      const answers = data.answers || {};
+
+      const probPerson = answers.has_person_name?.noul ?? 0.0;
+      const probChair = answers.has_chair_reference?.noul ?? 0.0;
+      const probInsult = answers.has_insult?.noul ?? 0.0;
+      const probArgSlang = answers.has_arg_slang?.noul ?? 0.0;
+      const probDisrespect = answers.has_disrespect?.noul ?? 0.0;
+      const probPolGender = answers.has_political_gender_discrimination?.noul ?? 0.0;
+      const polGenderCategory = answers.political_gender_category?.choice || 'ninguna';
+
+      let identifiedPersonName: string | undefined = undefined;
+      if (answers.identified_person_name && answers.identified_person_name.choice !== 'ninguno') {
+        identifiedPersonName = answers.identified_person_name.choice;
+      }
+
+      let identifiedChairName: string | undefined = undefined;
+      if (answers.identified_chair_name && answers.identified_chair_name.choice !== 'ninguna') {
+        identifiedChairName = answers.identified_chair_name.choice;
+      }
+
+      let identifiedInsult: string | undefined = undefined;
+      if (answers.identified_insult && answers.identified_insult.choice !== 'ninguno') {
+        identifiedInsult = answers.identified_insult.choice;
+      }
+
+      const toxAnswer = answers.toxicity_level;
+      const rawTox = toxAnswer?.score ?? 0.0;
+      const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
+
+      let primaryTopic = answers.primary_topic?.choice || 'docencia';
+      let recommendedAction = answers.recommended_action?.choice || 'publicar_directo';
+
+      if (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8) {
+        recommendedAction = normalizedTox >= 4.5 ? 'descartar' : 'censurar_insultos';
+      } else if (probPerson >= 0.5) {
+        recommendedAction = 'anonimizar_nombres';
+      } else if (probChair >= 0.7 && recommendedAction === 'publicar_directo') {
+        recommendedAction = 'anonimizar_catedra';
+      }
+
+      const result: JevSurveyResult = {
+        model: data.model || 'jev-1.13.0',
+        has_person_name: probPerson >= 0.5,
+        prob_person_name: Math.round(probPerson * 1000) / 1000,
+        identified_person_name: identifiedPersonName,
+        has_chair_reference: probChair >= 0.5,
+        prob_chair_reference: Math.round(probChair * 1000) / 1000,
+        identified_chair_name: identifiedChairName,
+        has_insult: probInsult >= 0.5,
+        prob_insult: Math.round(probInsult * 1000) / 1000,
+        identified_insult: identifiedInsult,
+        has_arg_slang: probArgSlang >= 0.5,
+        prob_arg_slang: Math.round(probArgSlang * 1000) / 1000,
+        has_disrespect: probDisrespect >= 0.5,
+        prob_disrespect: Math.round(probDisrespect * 1000) / 1000,
+        has_political_gender_discrimination: probPolGender >= 0.5,
+        prob_political_gender_discrimination: Math.round(probPolGender * 1000) / 1000,
+        political_gender_category: polGenderCategory,
+        toxicity_score: normalizedTox,
+        primary_topic: primaryTopic,
+        recommended_action: recommendedAction,
+        usage: data.usage
+      };
+
+      if (runTree) {
+        runTree.extra = {
+          ...runTree.extra,
+          metadata: {
+            ...runTree.extra?.metadata,
+            model: result.model,
+            toxicity_score: result.toxicity_score,
+            primary_topic: result.primary_topic,
+            recommended_action: result.recommended_action,
+            has_person_name: result.has_person_name,
+            identified_person_name: result.identified_person_name,
+            has_chair_reference: result.has_chair_reference,
+            identified_chair_name: result.identified_chair_name,
+            has_insult: result.has_insult,
+            identified_insult: result.identified_insult,
+            has_arg_slang: result.has_arg_slang,
+            has_disrespect: result.has_disrespect,
+            has_political_gender_discrimination: result.has_political_gender_discrimination
+          }
+        };
+      }
+
+      return result;
+    } catch (err: any) {
+      return {
+        model: 'error',
+        has_person_name: false,
+        prob_person_name: 0.0,
+        has_chair_reference: false,
+        prob_chair_reference: 0.0,
+        has_insult: false,
+        prob_insult: 0.0,
+        toxicity_score: 1.0,
+        primary_topic: 'error',
+        recommended_action: 'revisar_manual',
+        error: err?.message || 'Error desconocido'
+      };
+    }
+  },
+  {
+    name: 'jev_analyze_survey_comment',
+    run_type: 'chain',
+    tags: ['typesafe-jev', 'survey-moderation']
+  }
+);
+
+/**
+ * Procesa un lote de comentarios en paralelo controlado.
+ * Traced como 'chain' en LangSmith agregando métricas globales del lote.
+ */
+export const analyzeBatchComments = traceable(
+  async function analyzeBatchComments(
+    texts: string[],
+    concurrency = 5
+  ): Promise<JevSurveyResult[]> {
+    const runTree = getCurrentRunTree();
+    const results: JevSurveyResult[] = new Array(texts.length);
+    let currentIndex = 0;
+
+    async function worker() {
+      while (currentIndex < texts.length) {
+        const idx = currentIndex++;
+        results[idx] = await analyzeSurveyComment(texts[idx]);
+      }
+    }
+
+    const workers = Array.from({ length: Math.min(concurrency, texts.length) }, () => worker());
+    await Promise.all(workers);
+
+    if (runTree) {
+      const approvedCount = results.filter(r => r.recommended_action === 'publicar_directo').length;
+      const flaggedCount = results.length - approvedCount;
+      const avgTox = results.length > 0
+        ? Math.round((results.reduce((acc, r) => acc + (r.toxicity_score || 1), 0) / results.length) * 100) / 100
+        : 1.0;
+      runTree.extra = {
+        ...runTree.extra,
+        metadata: {
+          ...runTree.extra?.metadata,
+          total_comments: texts.length,
+          concurrency,
+          approved_direct: approvedCount,
+          flagged_or_censored: flaggedCount,
+          avg_toxicity: avgTox
+        }
+      };
+    }
+
+    return results;
+  },
+  {
+    name: 'jev_batch_analysis',
+    run_type: 'chain',
+    tags: ['typesafe-jev', 'batch-moderation', 'encuestas']
+  }
+);
+

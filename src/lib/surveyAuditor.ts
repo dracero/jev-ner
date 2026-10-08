@@ -2,6 +2,7 @@
 // Clasificación 100% realizada por TypeSafe Jev System One (sin regex ni listas hardcodeadas)
 
 import { analyzeBatchComments, type JevSurveyResult } from './jevService';
+import { traceable, getCurrentRunTree } from './langsmith';
 
 export interface AuditReportItem {
   id: string | number;
@@ -55,18 +56,21 @@ export function detectIdColumn(columns: string[]): string {
 /**
  * Ejecuta la auditoría completa de encuestas estudiantiles utilizando TypeSafe JEV System One.
  * Toda la clasificación semántica es ejecutada por JEV (cero regex).
+ * Traced como pipeline de auditoría en LangSmith con metadata de los 5 reportes.
  */
-export async function runSurveyAudit(
-  rows: Record<string, any>[],
-  options: {
-    idColumn?: string;
-    textColumn?: string;
-    sheetName?: string;
-    precomputedJev?: (JevSurveyResult | undefined)[];
-    concurrency?: number;
-  } = {}
-): Promise<SurveyAuditResult> {
-  const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+export const runSurveyAudit = traceable(
+  async function runSurveyAudit(
+    rows: Record<string, any>[],
+    options: {
+      idColumn?: string;
+      textColumn?: string;
+      sheetName?: string;
+      precomputedJev?: (JevSurveyResult | undefined)[];
+      concurrency?: number;
+    } = {}
+  ): Promise<SurveyAuditResult> {
+    const runTree = getCurrentRunTree();
+    const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   const idCol = options.idColumn || detectIdColumn(columns);
   const textCol = options.textColumn || 'comentario';
   const sheetName = options.sheetName || 'Comentarios 2026 1C';
@@ -204,17 +208,44 @@ export async function runSurveyAudit(
     }
   }
 
-  return {
-    sheetName,
-    totalRows: rows.length,
-    idColumn: idCol,
-    textColumn: textCol,
-    reportDisrespect,
-    reportProperNames,
-    reportArgSlang,
-    idsPoliticalGenderDiscrimination,
-    reportPoliticalGenderDiscrimination,
-    idsOver120WordsNegative,
-    reportOver120WordsNegative
-  };
-}
+    const auditSummary = {
+      sheetName,
+      totalRows: rows.length,
+      idColumn: idCol,
+      textColumn: textCol,
+      reportDisrespect,
+      reportProperNames,
+      reportArgSlang,
+      idsPoliticalGenderDiscrimination,
+      reportPoliticalGenderDiscrimination,
+      idsOver120WordsNegative,
+      reportOver120WordsNegative
+    };
+
+    if (runTree) {
+      runTree.extra = {
+        ...runTree.extra,
+        metadata: {
+          ...runTree.extra?.metadata,
+          sheet_name: sheetName,
+          total_rows: rows.length,
+          id_column: idCol,
+          text_column: textCol,
+          disrespect_matches: reportDisrespect.length,
+          proper_names_matches: reportProperNames.length,
+          arg_slang_matches: reportArgSlang.length,
+          political_gender_matches: idsPoliticalGenderDiscrimination.length,
+          over_120_words_negative_matches: idsOver120WordsNegative.length
+        }
+      };
+    }
+
+    return auditSummary;
+  },
+  {
+    name: 'jev_survey_audit_pipeline',
+    run_type: 'chain',
+    tags: ['typesafe-jev', 'survey-auditor', '5-reports']
+  }
+);
+

@@ -15,6 +15,7 @@
     "@typesafe-ai/sdk": "^0.6.0",
     "astro": "^7.3.5",
     "dotenv": "^18.0.5",
+    "langsmith": "^0.10.8",
     "papaparse": "^5.7.0",
     "xlsx": "^0.18.5"
   },

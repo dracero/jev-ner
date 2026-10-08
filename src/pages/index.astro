@@ -25,10 +25,17 @@ import '../styles/index.css';
           <p>NER, PER y Moderación Inteligente con TypeSafe Jev System One</p>
         </div>
       </div>
-      <div class="header-status-badge" id="api-status-badge">
-        <div class="pulse-dot" id="status-dot"></div>
-        <span id="api-status-text">Conectando con Backend...</span>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <div class="header-status-badge" id="api-status-badge">
+          <div class="pulse-dot" id="status-dot"></div>
+          <span id="api-status-text">Conectando con Backend...</span>
+        </div>
+        <a id="langsmith-badge" class="header-status-badge" href="https://smith.langchain.com/o/default/projects/p/jev_ner_test" target="_blank" rel="noopener noreferrer" title="Ver monitoreo y actividad en LangSmith" style="text-decoration: none; cursor: pointer; border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.12);">
+          <div class="pulse-dot" id="langsmith-dot" style="background: #10b981; box-shadow: 0 0 10px #10b981;"></div>
+          <span id="langsmith-status-text" style="color: #c7d2fe; font-weight: 500;">LangSmith: jev_ner_test ✓</span>
+        </a>
       </div>
+
     </header>
 
     <!-- Navigation Tabs -->
@@ -651,11 +658,35 @@ import '../styles/index.css';
           apiStatusText.textContent = 'Backend Online (Falta JEV_API_KEY)';
           statusDot.style.background = '#f59e0b';
         }
+
+        if (data.langsmith) {
+          const lsBadge = document.getElementById('langsmith-badge');
+          const lsText = document.getElementById('langsmith-status-text');
+          const lsDot = document.getElementById('langsmith-dot');
+          const project = data.langsmith.project || 'jev_ner_test';
+          if (lsBadge && lsText) {
+            lsBadge.href = `https://smith.langchain.com/o/default/projects/p/${encodeURIComponent(project)}`;
+            if (data.langsmith.enabled) {
+              lsText.textContent = `LangSmith: ${project} ✓`;
+              if (lsDot) {
+                lsDot.style.background = '#10b981';
+                lsDot.style.boxShadow = '0 0 10px #10b981';
+              }
+            } else {
+              lsText.textContent = `LangSmith: Inactivo`;
+              if (lsDot) {
+                lsDot.style.background = '#6b7280';
+                lsDot.style.boxShadow = 'none';
+              }
+            }
+          }
+        }
       } catch (e) {
         apiStatusText.textContent = 'Backend Desconectado';
         statusDot.style.background = '#ef4444';
       }
     }
+
 
     checkHealth();
 
@@ -1309,9 +1340,21 @@ import '../styles/index.css';
             <div class="kpi-value" style="font-size: 1rem;"><span class="action-chip ${jev.recommended_action}">${jev.recommended_action}</span></div>
             <div class="kpi-sub">Moderación</div>
           </div>
+          ${data.langsmith_trace?.url ? `
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 170px; border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.08);">
+            <div class="kpi-label" style="color: #a5b4fc;">LangSmith Trace</div>
+            <div class="kpi-value" style="font-size: 0.9rem; margin-top: 4px;">
+              <a href="${data.langsmith_trace.url}" target="_blank" rel="noopener noreferrer" style="color: #818cf8; text-decoration: underline; font-weight: 600;">
+                Ver en LangSmith ↗
+              </a>
+            </div>
+            <div class="kpi-sub">Trayectoria registrada</div>
+          </div>
+          ` : ''}
         `;
 
-        showToast('Respuesta evaluada con éxito', '⚡');
+        showToast('Respuesta evaluada y registrada en LangSmith', '⚡');
+
       } catch (e) {
         showToast('Error al analizar comentario', '❌');
       } finally {

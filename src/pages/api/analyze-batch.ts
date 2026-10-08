@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSession } from '../../lib/sessionStore';
 import { analyzeBatchComments } from '../../lib/jevService';
 import { extractEntitiesFromText, generateAnonymizedAndHighlighted } from '../../lib/anonymizer';
+import { traceable, getCurrentRunTree, flushLangSmithTraces, buildLangSmithRunUrl } from '../../lib/langsmith';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -103,8 +104,13 @@ export const POST: APIRoute = async ({ request }) => {
 
     const avgToxicity = texts.length > 0 ? Math.round((totalTox / texts.length) * 100) / 100 : 1.0;
 
-    session.processedRows = processedRows;
-    session.textColumn = text_column;
+    if (session) {
+      session.processedRows = processedRows;
+      session.textColumn = text_column;
+    }
+
+    // Asegurar que todas las trazas del lote fueron recibidas por LangSmith
+    await flushLangSmithTraces();
 
     return new Response(
       JSON.stringify({
@@ -120,14 +126,20 @@ export const POST: APIRoute = async ({ request }) => {
           topic_distribution: topicDistribution,
           action_distribution: actionDistribution
         },
-        rows: processedRows
+        rows: processedRows,
+        langsmith: {
+          project: process.env.LANGSMITH_PROJECT || 'jev_ner_test',
+          url: buildLangSmithRunUrl()
+        }
       }),
       { headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
+    await flushLangSmithTraces();
     return new Response(
       JSON.stringify({ detail: err?.message || 'Error al ejecutar lote de análisis' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };
+

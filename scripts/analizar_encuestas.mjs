@@ -4,6 +4,17 @@ import XLSX from 'xlsx';
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { traceable, getCurrentRunTree } from 'langsmith/traceable';
+import { Client } from 'langsmith';
+
+if (process.env.LANGSMITH_PROJECT && !process.env.LANGCHAIN_PROJECT) {
+  process.env.LANGCHAIN_PROJECT = process.env.LANGSMITH_PROJECT.replace(/['"]/g, '');
+}
+if (process.env.LANGSMITH_TRACING === 'true' && !process.env.LANGCHAIN_TRACING_V2) {
+  process.env.LANGCHAIN_TRACING_V2 = 'true';
+}
+
+
 export function countWords(str) {
   if (!str) return 0;
   return str.trim().split(/\s+/).filter(w => w.length > 0).length;
@@ -35,9 +46,12 @@ export function extractTextChunks(text) {
   return sorted.slice(0, 15);
 }
 
-export async function classifyWithJev(text, apiKey) {
-  if (!text || !text.trim() || !apiKey) {
-    return {
+export const classifyWithJev = traceable(
+  async function classifyWithJev(text, apiKey) {
+    const runTree = getCurrentRunTree();
+    if (!text || !text.trim() || !apiKey) {
+      return {
+
       has_person_name: false,
       identified_person_name: 'ninguno',
       has_disrespect: false,
@@ -146,7 +160,7 @@ export async function classifyWithJev(text, apiKey) {
     const rawTox = answers.toxicity_level?.score ?? 0.0;
     const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
 
-    return {
+    const classified = {
       has_person_name: probPerson >= 0.5,
       prob_person_name: probPerson,
       identified_person_name: identifiedName,
@@ -158,6 +172,21 @@ export async function classifyWithJev(text, apiKey) {
       political_gender_category: polCategory,
       toxicity_score: normalizedTox
     };
+
+    if (runTree && data.usage) {
+      runTree.extra = {
+        ...runTree.extra,
+        metadata: {
+          ...runTree.extra?.metadata,
+          model: data.model || 'jev-latest',
+          input_tokens: data.usage.input_tokens,
+          output_tokens: data.usage.output_tokens,
+          toxicity_score: normalizedTox
+        }
+      };
+    }
+
+    return classified;
   } catch (err) {
     console.warn(`[WARN] Error llamando a Jev: ${err.message}`);
     return {
@@ -172,13 +201,21 @@ export async function classifyWithJev(text, apiKey) {
       toxicity_score: 1.0
     };
   }
-}
+},
+{
+  name: 'jev_cli_system_one_inference',
+  run_type: 'llm',
+  tags: ['typesafe-jev', 'cli', 'moderation']
+});
 
-export async function analyzeSurveyRows(rows, sheetName = 'Hoja', apiKey = process.env.JEV_API_KEY) {
-  const result = {
-    totalRows: rows.length,
-    sheetName,
-    req1_disrespect: [],
+export const analyzeSurveyRows = traceable(
+  async function analyzeSurveyRows(rows, sheetName = 'Hoja', apiKey = process.env.JEV_API_KEY) {
+    const runTree = getCurrentRunTree();
+    const result = {
+      totalRows: rows.length,
+      sheetName,
+      req1_disrespect: [],
+
     req2_properNames: [],
     req3_argTerms: [],
     req4_polGenderDiscr: [],
@@ -255,8 +292,31 @@ export async function analyzeSurveyRows(rows, sheetName = 'Hoja', apiKey = proce
     }
   }
 
-  return result;
-}
+    if (runTree) {
+      runTree.extra = {
+        ...runTree.extra,
+        metadata: {
+          ...runTree.extra?.metadata,
+          sheet_name: sheetName,
+          total_rows: rows.length,
+          disrespect_matches: result.req1_disrespect.length,
+          proper_names_matches: result.req2_properNames.length,
+          arg_slang_matches: result.req3_argTerms.length,
+          political_gender_matches: result.req4_polGenderDiscr.length,
+          long_negative_matches: result.req5_longNegative.length
+        }
+      };
+    }
+
+    return result;
+  },
+  {
+    name: 'jev_cli_survey_analysis',
+    run_type: 'chain',
+    tags: ['typesafe-jev', 'cli', 'survey-auditor']
+  }
+);
+
 
 // Ejecución CLI directa
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -287,7 +347,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
 
-  analyzeSurveyRows(rows, matchedSheet, apiKey).then(results => {
+  analyzeSurveyRows(rows, matchedSheet, apiKey).then(async (results) => {
     console.log(`\n### 1. Tabla Exportable: Tratos inapropiados, maliciosos, faltas de respeto, insultos o hablar mal de personas (Clasificado por JEV)\n`);
     console.log(`| ID | Comentario |`);
     console.log(`| :--- | :--- |`);
@@ -366,5 +426,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     fs.writeFileSync(path.join(outDir, '5_ids_mas_120_palabras_negativas.txt'), txtReq5, 'utf-8');
 
     console.log(`\n[OK] Reportes exportables guardados en la carpeta: ${outDir}/`);
+
+    try {
+      const client = new Client();
+      await client.awaitPendingTraceBatches();
+      const projName = process.env.LANGSMITH_PROJECT || 'jev_ner_test';
+      console.log(`\n[LangSmith] 🎯 Toda la trayectoria fue registrada con éxito en el proyecto: "${projName}"`);
+      console.log(`[LangSmith] 🔗 Panel web: https://smith.langchain.com/o/default/projects/p/${encodeURIComponent(projName)}`);
+    } catch (err) {
+      console.warn('[LangSmith] Advertencia sincronizando trazas:', err.message);
+    }
   });
 }
+
