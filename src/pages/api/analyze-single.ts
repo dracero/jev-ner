@@ -8,15 +8,18 @@ const processSingleCommentPipeline = traceable(
     const runTree = getCurrentRunTree();
     const jevResult = await analyzeSurveyComment(text);
 
-    const entities = extractEntitiesFromText(
-      text,
-      jevResult.has_person_name,
-      jevResult.has_chair_reference,
-      jevResult.has_insult,
-      jevResult.identified_person_name,
-      jevResult.identified_chair_name,
-      jevResult.identified_insult
-    );
+    const entities = extractEntitiesFromText(text, {
+      hasPerson: jevResult.has_person_name,
+      identifiedPersonName: jevResult.identified_person_name,
+      hasChair: jevResult.has_chair_reference,
+      identifiedChairName: jevResult.identified_chair_name,
+      hasInsult: jevResult.has_insult,
+      identifiedInsult: jevResult.identified_insult,
+      hasEmail: jevResult.has_email,
+      identifiedEmail: jevResult.identified_email,
+      hasPhone: jevResult.has_phone,
+      identifiedPhone: jevResult.identified_phone
+    });
 
     const { anonymizedText, highlightedHtml } = generateAnonymizedAndHighlighted(
       text,
@@ -25,9 +28,13 @@ const processSingleCommentPipeline = traceable(
         maskPer: options.mask_per !== false,
         maskChair: options.mask_chair !== false,
         maskInsult: options.mask_insult !== false,
+        maskEmail: options.mask_email !== false,
+        maskPhone: options.mask_phone !== false,
         perPlaceholder: options.per_placeholder || '[DOCENTE]',
         chairPlaceholder: options.chair_placeholder || '[CÁTEDRA]',
-        insultPlaceholder: options.insult_placeholder || '[LENGUAJE INAPROPIADO]'
+        insultPlaceholder: options.insult_placeholder || '[LENGUAJE INAPROPIADO]',
+        emailPlaceholder: options.email_placeholder || '[EMAIL]',
+        phonePlaceholder: options.phone_placeholder || '[TELÉFONO]'
       }
     );
 

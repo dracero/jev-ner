@@ -87,5 +87,21 @@ export const SAMPLE_SURVEY: SurveyRecord[] = [
     comision: "K2031",
     comentario: "Excelente el campus virtual y el material de lectura. Se agradece la enorme dedicación y respeto del equipo docente.",
     calificacion_general: 10
+  },
+  {
+    id_encuesta: 111,
+    estudiante_id: "EST-2024-011",
+    materia: "Sistemas de Gestión",
+    comision: "K3011",
+    comentario: "Para consultas de la materia nos pidieron escribir a docente.martin@universidad.edu.ar pero tardan semanas en responder.",
+    calificacion_general: 4
+  },
+  {
+    id_encuesta: 112,
+    estudiante_id: "EST-2024-012",
+    materia: "Redes de Información",
+    comision: "K4015",
+    comentario: "Armamos un grupo de WhatsApp al 11-4321-9876 para estudiar y consultar dudas de los trabajos prácticos de Redes.",
+    calificacion_general: 8
   }
 ];

@@ -45,6 +45,8 @@ export const POST: APIRoute = async ({ request }) => {
         rowData['jev_tiene_persona'] = jev.has_person_name ?? false;
         rowData['jev_tiene_catedra'] = jev.has_chair_reference ?? false;
         rowData['jev_tiene_insulto'] = jev.has_insult ?? false;
+        rowData['jev_tiene_email'] = jev.has_email ?? false;
+        rowData['jev_tiene_telefono'] = jev.has_phone ?? false;
         rowData['jev_toxicidad'] = jev.toxicity_score ?? 1.0;
         rowData['jev_tema'] = jev.primary_topic ?? '';
         rowData['jev_accion'] = jev.recommended_action ?? '';

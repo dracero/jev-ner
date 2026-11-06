@@ -519,6 +519,28 @@ header.app-header {
   color: #fff;
 }
 
+/* EMAIL (Correo Electrónico) */
+.entity-email {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #d1fae5;
+}
+.entity-email small {
+  background: #059669;
+  color: #fff;
+}
+
+/* TELÉFONO / WhatsApp */
+.entity-phone, .entity-tel {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #f3e8ff;
+}
+.entity-phone small, .entity-tel small {
+  background: #9333ea;
+  color: #fff;
+}
+
 /* Action Chips */
 .action-chip {
   display: inline-block;

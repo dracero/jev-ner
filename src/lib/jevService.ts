@@ -14,6 +14,12 @@ export interface JevSurveyResult {
   has_insult: boolean;
   prob_insult: number;
   identified_insult?: string;
+  has_email: boolean;
+  prob_email: number;
+  identified_email?: string;
+  has_phone: boolean;
+  prob_phone: number;
+  identified_phone?: string;
   has_arg_slang?: boolean;
   prob_arg_slang?: number;
   has_disrespect?: boolean;
@@ -36,40 +42,46 @@ export function getJevApiKey(): string {
 }
 
 /**
- * Extrae fragmentos y frases del texto sin regexes ni diccionarios fijos,
- * para que TypeSafe JEV clasifique inteligentemente nombres, cátedras e insultos.
+ * Extrae fragmentos y frases del texto respetando caracteres internos (@, ., -, +),
+ * para que TypeSafe JEV clasifique inteligentemente nombres, cátedras, insultos, emails y teléfonos.
+ * Cero regex de reconocimiento o hardcoding.
  */
 export function extractTextChunks(text: string): string[] {
   if (!text) return [];
-  const words = text
+
+  // Limpiar solo signos de puntuación exteriores, preservando caracteres internos
+  const rawWords = text
     .trim()
     .split(/\s+/)
-    .map(w => w.replace(/[.,;:()¿?¡!"'«»]/g, '').trim())
+    .map(w => w.replace(/^[¿¡"'(«<]+|[.,;:?!")»>]+$/g, '').trim())
     .filter(w => w.length >= 2);
 
   const chunks = new Set<string>();
 
   // Palabras individuales
-  for (const w of words) {
+  for (const w of rawWords) {
     chunks.add(w);
   }
 
-  // Frases de 2 y 3 palabras consecutivas (ej. "Juan Perez", "Sistemas Operativos", "María Gómez")
-  for (let i = 0; i < words.length - 1; i++) {
-    chunks.add(`${words[i]} ${words[i + 1]}`);
-    if (i + 2 < words.length) {
-      chunks.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  // Frases de 2, 3 y 4 palabras consecutivas (nombres compuestos, cátedras, teléfonos con prefijos)
+  for (let i = 0; i < rawWords.length - 1; i++) {
+    chunks.add(`${rawWords[i]} ${rawWords[i + 1]}`);
+    if (i + 2 < rawWords.length) {
+      chunks.add(`${rawWords[i]} ${rawWords[i + 1]} ${rawWords[i + 2]}`);
+    }
+    if (i + 3 < rawWords.length) {
+      chunks.add(`${rawWords[i]} ${rawWords[i + 1]} ${rawWords[i + 2]} ${rawWords[i + 3]}`);
     }
   }
 
-  // Ordenar priorizando mayúsculas o longitud
+  // Ordenar priorizando términos informativos: símbolos @ o +, mayúsculas, dígitos o longitud
   const sorted = Array.from(chunks).sort((a, b) => {
-    const aCap = /^[A-ZÁÉÍÓÚÑ]/.test(a) ? 1 : 0;
-    const bCap = /^[A-ZÁÉÍÓÚÑ]/.test(b) ? 1 : 0;
-    return bCap - aCap || b.length - a.length;
+    const aSpecial = /[@+]/.test(a) ? 2 : (/^[A-ZÁÉÍÓÚÑ0-9]/.test(a) ? 1 : 0);
+    const bSpecial = /[@+]/.test(b) ? 2 : (/^[A-ZÁÉÍÓÚÑ0-9]/.test(b) ? 1 : 0);
+    return bSpecial - aSpecial || b.length - a.length;
   });
 
-  return sorted.slice(0, 15);
+  return sorted.slice(0, 30);
 }
 
 export function buildSurveyQuestions(text: string): Record<string, any> {
@@ -78,11 +90,15 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
   const critPerson: Record<string, string> = { ninguno: 'No se menciona ninguna persona en particular' };
   const critChair: Record<string, string> = { ninguna: 'No se menciona ninguna materia o cátedra' };
   const critInsult: Record<string, string> = { ninguno: 'No contiene insultos ni términos ofensivos' };
+  const critEmail: Record<string, string> = { ninguno: 'No se menciona ninguna dirección de correo electrónico' };
+  const critPhone: Record<string, string> = { ninguno: 'No se menciona ningún número de teléfono o celular' };
 
   for (const c of chunks) {
     critPerson[c] = `Término del texto: "${c}"`;
     critChair[c] = `Término del texto: "${c}"`;
     critInsult[c] = `Término del texto: "${c}"`;
+    critEmail[c] = `Término del texto: "${c}"`;
+    critPhone[c] = `Término del texto: "${c}"`;
   }
 
   const questions: Record<string, any> = {
@@ -112,6 +128,24 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
       type: 'choice',
       instructions: '¿Cuál es el insulto o término ofensivo presente en el texto?',
       criteria: critInsult
+    },
+    has_email: {
+      type: 'noul',
+      instructions: '¿El texto contiene una dirección de correo electrónico o email?'
+    },
+    identified_email: {
+      type: 'choice',
+      instructions: '¿Cuál de las siguientes opciones corresponde a la dirección de correo electrónico mencionada en el texto?',
+      criteria: critEmail
+    },
+    has_phone: {
+      type: 'noul',
+      instructions: '¿El texto contiene un número de teléfono, celular o contacto de WhatsApp?'
+    },
+    identified_phone: {
+      type: 'choice',
+      instructions: '¿Cuál de las siguientes opciones corresponde al número de teléfono, celular o WhatsApp mencionado en el texto?',
+      criteria: critPhone
     },
     has_arg_slang: {
       type: 'noul',
@@ -165,6 +199,7 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
       criteria: {
         publicar_directo: 'Apto para publicar sin modificaciones (no tiene nombres, insultos ni datos sensibles)',
         anonimizar_nombres: 'Contiene nombres de personas que deben ser protegidos/anonimizados',
+        anonimizar_datos_contacto: 'Contiene datos de contacto personales (teléfonos o correos electrónicos) que deben ser anonimizados',
         anonimizar_catedra: 'Contiene mención de cátedra específica que debe anonimizarse',
         censurar_insultos: 'Contiene insultos o lenguaje inapropiado que debe ser redactado',
         descartar: 'Comentario no publicable por agresión severa, difamación o violencia'
@@ -250,6 +285,10 @@ export const analyzeSurveyComment = traceable(
         prob_chair_reference: 0.0,
         has_insult: false,
         prob_insult: 0.0,
+        has_email: false,
+        prob_email: 0.0,
+        has_phone: false,
+        prob_phone: 0.0,
         has_arg_slang: false,
         prob_arg_slang: 0.0,
         has_disrespect: false,
@@ -271,6 +310,8 @@ export const analyzeSurveyComment = traceable(
       const probPerson = answers.has_person_name?.noul ?? 0.0;
       const probChair = answers.has_chair_reference?.noul ?? 0.0;
       const probInsult = answers.has_insult?.noul ?? 0.0;
+      const probEmail = answers.has_email?.noul ?? 0.0;
+      const probPhone = answers.has_phone?.noul ?? 0.0;
       const probArgSlang = answers.has_arg_slang?.noul ?? 0.0;
       const probDisrespect = answers.has_disrespect?.noul ?? 0.0;
       const probPolGender = answers.has_political_gender_discrimination?.noul ?? 0.0;
@@ -291,6 +332,22 @@ export const analyzeSurveyComment = traceable(
         identifiedInsult = answers.identified_insult.choice;
       }
 
+      let identifiedEmail: string | undefined = undefined;
+      if (answers.identified_email && answers.identified_email.choice !== 'ninguno') {
+        identifiedEmail = answers.identified_email.choice;
+      }
+
+      let identifiedPhone: string | undefined = undefined;
+      if (answers.identified_phone && answers.identified_phone.choice !== 'ninguno') {
+        identifiedPhone = answers.identified_phone.choice;
+      }
+
+      const hasPerson = probPerson >= 0.5 && Boolean(identifiedPersonName);
+      const hasChair = probChair >= 0.5 && Boolean(identifiedChairName);
+      const hasInsult = probInsult >= 0.5 && Boolean(identifiedInsult);
+      const hasEmail = probEmail >= 0.5 && Boolean(identifiedEmail);
+      const hasPhone = probPhone >= 0.5 && Boolean(identifiedPhone);
+
       const toxAnswer = answers.toxicity_level;
       const rawTox = toxAnswer?.score ?? 0.0;
       const normalizedTox = rawTox <= 4.0 ? Math.round((rawTox + 1.0) * 100) / 100 : Math.round(rawTox * 100) / 100;
@@ -300,23 +357,31 @@ export const analyzeSurveyComment = traceable(
 
       if (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8) {
         recommendedAction = normalizedTox >= 4.5 ? 'descartar' : 'censurar_insultos';
-      } else if (probPerson >= 0.5) {
+      } else if (hasPerson) {
         recommendedAction = 'anonimizar_nombres';
-      } else if (probChair >= 0.7 && recommendedAction === 'publicar_directo') {
+      } else if ((hasEmail || hasPhone) && recommendedAction === 'publicar_directo') {
+        recommendedAction = 'anonimizar_datos_contacto';
+      } else if (hasChair && recommendedAction === 'publicar_directo') {
         recommendedAction = 'anonimizar_catedra';
       }
 
       const result: JevSurveyResult = {
         model: data.model || 'jev-1.13.0',
-        has_person_name: probPerson >= 0.5,
+        has_person_name: hasPerson,
         prob_person_name: Math.round(probPerson * 1000) / 1000,
         identified_person_name: identifiedPersonName,
-        has_chair_reference: probChair >= 0.5,
+        has_chair_reference: hasChair,
         prob_chair_reference: Math.round(probChair * 1000) / 1000,
         identified_chair_name: identifiedChairName,
-        has_insult: probInsult >= 0.5,
+        has_insult: hasInsult,
         prob_insult: Math.round(probInsult * 1000) / 1000,
         identified_insult: identifiedInsult,
+        has_email: hasEmail,
+        prob_email: Math.round(probEmail * 1000) / 1000,
+        identified_email: identifiedEmail,
+        has_phone: hasPhone,
+        prob_phone: Math.round(probPhone * 1000) / 1000,
+        identified_phone: identifiedPhone,
         has_arg_slang: probArgSlang >= 0.5,
         prob_arg_slang: Math.round(probArgSlang * 1000) / 1000,
         has_disrespect: probDisrespect >= 0.5,
@@ -345,6 +410,10 @@ export const analyzeSurveyComment = traceable(
             identified_chair_name: result.identified_chair_name,
             has_insult: result.has_insult,
             identified_insult: result.identified_insult,
+            has_email: result.has_email,
+            identified_email: result.identified_email,
+            has_phone: result.has_phone,
+            identified_phone: result.identified_phone,
             has_arg_slang: result.has_arg_slang,
             has_disrespect: result.has_disrespect,
             has_political_gender_discrimination: result.has_political_gender_discrimination
@@ -362,6 +431,10 @@ export const analyzeSurveyComment = traceable(
         prob_chair_reference: 0.0,
         has_insult: false,
         prob_insult: 0.0,
+        has_email: false,
+        prob_email: 0.0,
+        has_phone: false,
+        prob_phone: 0.0,
         toxicity_score: 1.0,
         primary_topic: 'error',
         recommended_action: 'revisar_manual',

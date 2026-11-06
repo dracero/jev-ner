@@ -151,6 +151,22 @@ import '../styles/index.css';
             </div>
           </label>
 
+          <label class="checkbox-row" for="chk-mask-email">
+            <input type="checkbox" id="chk-mask-email" checked />
+            <div class="checkbox-info">
+              <span class="checkbox-title">Anonimizar Correos Electrónicos (EMAIL)</span>
+              <span class="checkbox-desc">Oculta correos detectados por Jev sustituyéndolos por [EMAIL_N]</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row" for="chk-mask-phone">
+            <input type="checkbox" id="chk-mask-phone" checked />
+            <div class="checkbox-info">
+              <span class="checkbox-title">Anonimizar Teléfonos & WhatsApp (TEL)</span>
+              <span class="checkbox-desc">Protege números telefónicos detectados por Jev por [TELÉFONO_N]</span>
+            </div>
+          </label>
+
           <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px;">
             <button class="btn btn-primary" id="btn-start-analysis" style="width: 100%;" disabled>
               <span id="btn-analysis-icon">🚀</span>
@@ -210,6 +226,16 @@ import '../styles/index.css';
           <div class="kpi-value" id="kpi-insults">0</div>
           <div class="kpi-sub">Comentarios ofensivos detectados</div>
         </div>
+        <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4);">
+          <div class="kpi-label">Emails</div>
+          <div class="kpi-value" id="kpi-emails" style="color: #6ee7b7;">0</div>
+          <div class="kpi-sub">Correos detectados por Jev</div>
+        </div>
+        <div class="kpi-card" style="border-color: rgba(168, 85, 247, 0.4);">
+          <div class="kpi-label">Teléfonos / WhatsApp</div>
+          <div class="kpi-value" id="kpi-phones" style="color: #d8b4fe;">0</div>
+          <div class="kpi-sub">Números detectados por Jev</div>
+        </div>
         <div class="kpi-card kpi-success">
           <div class="kpi-label">Aprobados Directos</div>
           <div class="kpi-value" id="kpi-approved">0</div>
@@ -230,6 +256,8 @@ import '../styles/index.css';
             <button class="filter-pill" data-filter="per">Docentes / PER (<span id="filter-cnt-per">0</span>)</button>
             <button class="filter-pill" data-filter="chair">Cátedras (<span id="filter-cnt-chair">0</span>)</button>
             <button class="filter-pill" data-filter="insult">Insultos (<span id="filter-cnt-insult">0</span>)</button>
+            <button class="filter-pill" data-filter="email">Emails (<span id="filter-cnt-email">0</span>)</button>
+            <button class="filter-pill" data-filter="phone">Teléfonos (<span id="filter-cnt-phone">0</span>)</button>
             <button class="filter-pill" data-filter="approved">Aprobados (<span id="filter-cnt-approved">0</span>)</button>
             <button class="filter-pill" data-filter="discard">Descartar / Severos (<span id="filter-cnt-discard">0</span>)</button>
           </div>
@@ -464,6 +492,8 @@ import '../styles/index.css';
           <button class="filter-pill sample-prompt-btn" data-text="El profesor Juan Perez de Algoritmos es un desastre y un idiota total.">Insulto a docente</button>
           <button class="filter-pill sample-prompt-btn" data-text="Excelente la cursada de Sistemas Operativos, los prácticos fueron muy claros.">Elogio con cátedra</button>
           <button class="filter-pill sample-prompt-btn" data-text="La ayudante Florencia Fernández tiene muy buena onda en las consultas.">Mención de ayudante (PER)</button>
+          <button class="filter-pill sample-prompt-btn" data-text="Cualquier duda de los prácticos me pueden escribir a juan.perez@facultad.edu.ar">Contacto por email</button>
+          <button class="filter-pill sample-prompt-btn" data-text="Para coordinar las fechas de entrega escriban al wsp 11-4321-9876">Teléfono / WhatsApp</button>
           <button class="filter-pill sample-prompt-btn" data-text="El parcial fue excesivamente largo y no alcanzó el tiempo estipulado.">Queja constructiva</button>
         </div>
 
@@ -1096,6 +1126,8 @@ import '../styles/index.css';
       const maskPer = document.getElementById('chk-mask-per').checked;
       const maskChair = document.getElementById('chk-mask-chair').checked;
       const maskInsults = document.getElementById('chk-mask-insults').checked;
+      const maskEmail = document.getElementById('chk-mask-email').checked;
+      const maskPhone = document.getElementById('chk-mask-phone').checked;
 
       btnStartAnalysis.disabled = true;
       btnAnalysisText.textContent = 'Ejecutando TypeSafe Jev...';
@@ -1116,6 +1148,8 @@ import '../styles/index.css';
             mask_per: maskPer,
             mask_chair: maskChair,
             mask_insult: maskInsults,
+            mask_email: maskEmail,
+            mask_phone: maskPhone,
             concurrency: 5
           })
         });
@@ -1160,6 +1194,8 @@ import '../styles/index.css';
       document.getElementById('kpi-per').textContent = kpi.with_person_name;
       document.getElementById('kpi-chairs').textContent = kpi.with_chair_reference;
       document.getElementById('kpi-insults').textContent = kpi.with_insults;
+      document.getElementById('kpi-emails').textContent = kpi.with_emails || 0;
+      document.getElementById('kpi-phones').textContent = kpi.with_phones || 0;
       document.getElementById('kpi-approved').textContent = kpi.approved_direct;
       document.getElementById('kpi-toxicity').textContent = `${kpi.avg_toxicity} / 5`;
 
@@ -1167,6 +1203,8 @@ import '../styles/index.css';
       document.getElementById('filter-cnt-per').textContent = kpi.with_person_name;
       document.getElementById('filter-cnt-chair').textContent = kpi.with_chair_reference;
       document.getElementById('filter-cnt-insult').textContent = kpi.with_insults;
+      document.getElementById('filter-cnt-email').textContent = kpi.with_emails || 0;
+      document.getElementById('filter-cnt-phone').textContent = kpi.with_phones || 0;
       document.getElementById('filter-cnt-approved').textContent = kpi.approved_direct;
       document.getElementById('filter-cnt-discard').textContent = kpi.action_distribution['descartar'] || 0;
     }
@@ -1179,6 +1217,8 @@ import '../styles/index.css';
         if (currentFilter === 'per' && !r.jev.has_person_name) return false;
         if (currentFilter === 'chair' && !r.jev.has_chair_reference) return false;
         if (currentFilter === 'insult' && !r.jev.has_insult) return false;
+        if (currentFilter === 'email' && !r.jev.has_email) return false;
+        if (currentFilter === 'phone' && !r.jev.has_phone) return false;
         if (currentFilter === 'approved' && r.jev.recommended_action !== 'publicar_directo') return false;
         if (currentFilter === 'discard' && r.jev.recommended_action !== 'descartar') return false;
 
@@ -1220,6 +1260,14 @@ import '../styles/index.css';
                 <span class="badge-pill ${jev.has_insult ? 'true' : 'false'}">
                   Insulto: ${(jev.prob_insult * 100).toFixed(0)}%
                 </span>
+                ${jev.has_email ? `
+                <span class="badge-pill true" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.4);">
+                  Email: ${(jev.prob_email * 100).toFixed(0)}%
+                </span>` : ''}
+                ${jev.has_phone ? `
+                <span class="badge-pill true" style="background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.4);">
+                  Tel: ${(jev.prob_phone * 100).toFixed(0)}%
+                </span>` : ''}
               </div>
             </td>
             <td style="white-space: nowrap;">
@@ -1329,6 +1377,16 @@ import '../styles/index.css';
             <div class="kpi-label">Insulto / Inapropiado</div>
             <div class="kpi-value" style="font-size: 1.2rem;">${(jev.prob_insult * 100).toFixed(0)}%</div>
             <div class="kpi-sub">${jev.has_insult ? 'Detectado' : 'No detectado'}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px; border-color: rgba(16, 185, 129, 0.4);">
+            <div class="kpi-label" style="color: #6ee7b7;">Correo Electrónico</div>
+            <div class="kpi-value" style="font-size: 1.2rem; color: #6ee7b7;">${(jev.prob_email * 100).toFixed(0)}%</div>
+            <div class="kpi-sub">${jev.has_email ? (jev.identified_email || 'Detectado') : 'No detectado'}</div>
+          </div>
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 140px; border-color: rgba(168, 85, 247, 0.4);">
+            <div class="kpi-label" style="color: #d8b4fe;">Teléfono / WhatsApp</div>
+            <div class="kpi-value" style="font-size: 1.2rem; color: #d8b4fe;">${(jev.prob_phone * 100).toFixed(0)}%</div>
+            <div class="kpi-sub">${jev.has_phone ? (jev.identified_phone || 'Detectado') : 'No detectado'}</div>
           </div>
           <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
             <div class="kpi-label">Toxicidad Jev</div>
