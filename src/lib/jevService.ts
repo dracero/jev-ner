@@ -5,6 +5,8 @@ import { traceable, getCurrentRunTree } from './langsmith';
 
 export interface JevSurveyResult {
   model: string;
+  opinion_sentiment: 'buena' | 'mala' | 'neutra';
+  prob_sentiment: number;
   has_person_name: boolean;
   prob_person_name: number;
   identified_person_name?: string;
@@ -89,7 +91,7 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
 
   const critPerson: Record<string, string> = { ninguno: 'No se menciona ninguna persona en particular' };
   const critChair: Record<string, string> = { ninguna: 'No se menciona ninguna materia o cátedra' };
-  const critInsult: Record<string, string> = { ninguno: 'No contiene insultos ni términos ofensivos' };
+  const critInsult: Record<string, string> = { ninguno: 'No contiene insultos ni agresiones verbales (críticas u opiniones negativas legítimas NO son insultos)' };
   const critEmail: Record<string, string> = { ninguno: 'No se menciona ninguna dirección de correo electrónico' };
   const critPhone: Record<string, string> = { ninguno: 'No se menciona ningún número de teléfono o celular' };
 
@@ -102,6 +104,15 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
   }
 
   const questions: Record<string, any> = {
+    opinion_sentiment: {
+      type: 'choice',
+      instructions: '¿Cuál es la valoración o sentimiento general de la opinión expresada en el comentario del estudiante?',
+      criteria: {
+        buena: 'Opinión positiva, favorable, elogio o satisfacción con la cursada, profesor o materia',
+        mala: 'Opinión negativa, crítica, queja o descontento sobre la materia o el docente (sin ser necesariamente un insulto)',
+        neutra: 'Opinión neutral, puramente informativa, sugerencia moderada o sin carga emocional definida'
+      }
+    },
     has_person_name: {
       type: 'noul',
       instructions: '¿El texto menciona nombres o apellidos de personas particulares (profesores, ayudantes, alumnos, directivos)?'
@@ -122,11 +133,11 @@ export function buildSurveyQuestions(text: string): Record<string, any> {
     },
     has_insult: {
       type: 'noul',
-      instructions: '¿El texto contiene insultos, agravios, descalificaciones agresivas o lenguaje vulgar?'
+      instructions: '¿El texto contiene insultos explícitos, agresiones verbales o palabras soeces dirigidas a personas? ATENCIÓN: Las críticas negativas, quejas pedagógicas o desacuerdos sin agresiones verbales son opiniones malas o críticas legítimas, pero NO son insultos.'
     },
     identified_insult: {
       type: 'choice',
-      instructions: '¿Cuál es el insulto o término ofensivo presente en el texto?',
+      instructions: '¿Cuál es el insulto o término agresivo explícito presente en el texto? Si es una crítica negativa o queja sin insultos, seleccionar "ninguno".',
       criteria: critInsult
     },
     has_email: {
@@ -279,6 +290,8 @@ export const analyzeSurveyComment = traceable(
     if (!text || !text.trim()) {
       return {
         model: 'none',
+        opinion_sentiment: 'neutra',
+        prob_sentiment: 1.0,
         has_person_name: false,
         prob_person_name: 0.0,
         has_chair_reference: false,
@@ -306,6 +319,16 @@ export const analyzeSurveyComment = traceable(
       const questions = buildSurveyQuestions(text.trim());
       const data = await callJevSystemOne(text.trim(), questions, apiKey);
       const answers = data.answers || {};
+
+      const sentimentAns = answers.opinion_sentiment;
+      const rawSentiment = sentimentAns?.choice;
+      const opinionSentiment: 'buena' | 'mala' | 'neutra' =
+        rawSentiment === 'buena' || rawSentiment === 'mala' || rawSentiment === 'neutra'
+          ? rawSentiment
+          : 'neutra';
+      const probSentiment = sentimentAns?.probabilities
+        ? (sentimentAns.probabilities[opinionSentiment] ?? 1.0)
+        : 1.0;
 
       const probPerson = answers.has_person_name?.noul ?? 0.0;
       const probChair = answers.has_chair_reference?.noul ?? 0.0;
@@ -344,7 +367,8 @@ export const analyzeSurveyComment = traceable(
 
       const hasPerson = probPerson >= 0.5 && Boolean(identifiedPersonName);
       const hasChair = probChair >= 0.5 && Boolean(identifiedChairName);
-      const hasInsult = probInsult >= 0.5 && Boolean(identifiedInsult);
+      // Una opinión mala NO es insulto: solo clasificar como insulto si hay agravios o términos agresivos explícitos
+      const hasInsult = probInsult >= 0.6 && Boolean(identifiedInsult) && identifiedInsult !== 'ninguno';
       const hasEmail = probEmail >= 0.5 && Boolean(identifiedEmail);
       const hasPhone = probPhone >= 0.5 && Boolean(identifiedPhone);
 
@@ -355,7 +379,7 @@ export const analyzeSurveyComment = traceable(
       let primaryTopic = answers.primary_topic?.choice || 'docencia';
       let recommendedAction = answers.recommended_action?.choice || 'publicar_directo';
 
-      if (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8) {
+      if (hasInsult && (probInsult >= 0.7 || normalizedTox >= 4.0 || probDisrespect >= 0.8)) {
         recommendedAction = normalizedTox >= 4.5 ? 'descartar' : 'censurar_insultos';
       } else if (hasPerson) {
         recommendedAction = 'anonimizar_nombres';
@@ -363,10 +387,14 @@ export const analyzeSurveyComment = traceable(
         recommendedAction = 'anonimizar_datos_contacto';
       } else if (hasChair && recommendedAction === 'publicar_directo') {
         recommendedAction = 'anonimizar_catedra';
+      } else {
+        recommendedAction = 'publicar_directo';
       }
 
       const result: JevSurveyResult = {
         model: data.model || 'jev-1.13.0',
+        opinion_sentiment: opinionSentiment,
+        prob_sentiment: Math.round(probSentiment * 1000) / 1000,
         has_person_name: hasPerson,
         prob_person_name: Math.round(probPerson * 1000) / 1000,
         identified_person_name: identifiedPersonName,
@@ -401,6 +429,8 @@ export const analyzeSurveyComment = traceable(
           metadata: {
             ...runTree.extra?.metadata,
             model: result.model,
+            opinion_sentiment: result.opinion_sentiment,
+            prob_sentiment: result.prob_sentiment,
             toxicity_score: result.toxicity_score,
             primary_topic: result.primary_topic,
             recommended_action: result.recommended_action,
@@ -425,6 +455,8 @@ export const analyzeSurveyComment = traceable(
     } catch (err: any) {
       return {
         model: 'error',
+        opinion_sentiment: 'neutra',
+        prob_sentiment: 0.0,
         has_person_name: false,
         prob_person_name: 0.0,
         has_chair_reference: false,

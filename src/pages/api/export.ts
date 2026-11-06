@@ -42,6 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
       } else if (mode === 'all_metadata') {
         rowData[`${textColumn}_anonimizado`] = anonText;
         const jev = r.jev || {};
+        rowData['jev_opinion'] = jev.opinion_sentiment || 'neutra';
         rowData['jev_tiene_persona'] = jev.has_person_name ?? false;
         rowData['jev_tiene_catedra'] = jev.has_chair_reference ?? false;
         rowData['jev_tiene_insulto'] = jev.has_insult ?? false;

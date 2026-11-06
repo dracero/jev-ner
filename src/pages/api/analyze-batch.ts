@@ -48,6 +48,9 @@ export const POST: APIRoute = async ({ request }) => {
     let kpiInsultCount = 0;
     let kpiEmailCount = 0;
     let kpiPhoneCount = 0;
+    let kpiGoodCount = 0;
+    let kpiBadCount = 0;
+    let kpiNeutralCount = 0;
     let kpiApprovedCount = 0;
     let totalTox = 0.0;
     const topicDistribution: Record<string, number> = {};
@@ -75,6 +78,9 @@ export const POST: APIRoute = async ({ request }) => {
       if (jevRes.has_insult) kpiInsultCount++;
       if (jevRes.has_email) kpiEmailCount++;
       if (jevRes.has_phone) kpiPhoneCount++;
+      if (jevRes.opinion_sentiment === 'buena') kpiGoodCount++;
+      else if (jevRes.opinion_sentiment === 'mala') kpiBadCount++;
+      else kpiNeutralCount++;
 
       const { anonymizedText, highlightedHtml } = generateAnonymizedAndHighlighted(
         originalText,
@@ -142,6 +148,9 @@ export const POST: APIRoute = async ({ request }) => {
           with_insults: kpiInsultCount,
           with_emails: kpiEmailCount,
           with_phones: kpiPhoneCount,
+          good_opinions: kpiGoodCount,
+          bad_opinions: kpiBadCount,
+          neutral_opinions: kpiNeutralCount,
           approved_direct: kpiApprovedCount,
           avg_toxicity: avgToxicity,
           topic_distribution: topicDistribution,

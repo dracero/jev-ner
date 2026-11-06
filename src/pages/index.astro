@@ -236,6 +236,21 @@ import '../styles/index.css';
           <div class="kpi-value" id="kpi-phones" style="color: #d8b4fe;">0</div>
           <div class="kpi-sub">Números detectados por Jev</div>
         </div>
+        <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4);">
+          <div class="kpi-label">Opinión Buena</div>
+          <div class="kpi-value" id="kpi-good" style="color: #6ee7b7;">0</div>
+          <div class="kpi-sub">Elogios y satisfacción</div>
+        </div>
+        <div class="kpi-card" style="border-color: rgba(249, 115, 22, 0.4);">
+          <div class="kpi-label">Opinión Mala</div>
+          <div class="kpi-value" id="kpi-bad" style="color: #fdba74;">0</div>
+          <div class="kpi-sub">Críticas y quejas (sin insultos)</div>
+        </div>
+        <div class="kpi-card" style="border-color: rgba(148, 163, 184, 0.4);">
+          <div class="kpi-label">Opinión Neutra</div>
+          <div class="kpi-value" id="kpi-neutral" style="color: #cbd5e1;">0</div>
+          <div class="kpi-sub">Informativas o neutrales</div>
+        </div>
         <div class="kpi-card kpi-success">
           <div class="kpi-label">Aprobados Directos</div>
           <div class="kpi-value" id="kpi-approved">0</div>
@@ -253,6 +268,9 @@ import '../styles/index.css';
         <div class="filter-bar">
           <div class="filter-buttons">
             <button class="filter-pill active" data-filter="all">Todos (<span id="filter-cnt-all">0</span>)</button>
+            <button class="filter-pill" data-filter="good">Buenas (<span id="filter-cnt-good">0</span>)</button>
+            <button class="filter-pill" data-filter="bad">Malas (<span id="filter-cnt-bad">0</span>)</button>
+            <button class="filter-pill" data-filter="neutral">Neutras (<span id="filter-cnt-neutral">0</span>)</button>
             <button class="filter-pill" data-filter="per">Docentes / PER (<span id="filter-cnt-per">0</span>)</button>
             <button class="filter-pill" data-filter="chair">Cátedras (<span id="filter-cnt-chair">0</span>)</button>
             <button class="filter-pill" data-filter="insult">Insultos (<span id="filter-cnt-insult">0</span>)</button>
@@ -489,12 +507,13 @@ import '../styles/index.css';
 
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
           <span style="font-size: 0.8rem; color: var(--text-muted); align-self: center;">Ejemplos rápidos:</span>
-          <button class="filter-pill sample-prompt-btn" data-text="El profesor Juan Perez de Algoritmos es un desastre y un idiota total.">Insulto a docente</button>
-          <button class="filter-pill sample-prompt-btn" data-text="Excelente la cursada de Sistemas Operativos, los prácticos fueron muy claros.">Elogio con cátedra</button>
+          <button class="filter-pill sample-prompt-btn" data-text="El profesor Juan Perez de Algoritmos es un desastre y un idiota total.">Opinión mala CON insulto</button>
+          <button class="filter-pill sample-prompt-btn" data-text="El parcial fue larguísimo y la materia está muy mal organizada, no me gustó para nada cómo dieron los temas.">Opinión mala (sin insultos)</button>
+          <button class="filter-pill sample-prompt-btn" data-text="Excelente la cursada de Sistemas Operativos, los prácticos fueron muy claros.">Opinión buena (elogio)</button>
           <button class="filter-pill sample-prompt-btn" data-text="La ayudante Florencia Fernández tiene muy buena onda en las consultas.">Mención de ayudante (PER)</button>
           <button class="filter-pill sample-prompt-btn" data-text="Cualquier duda de los prácticos me pueden escribir a juan.perez@facultad.edu.ar">Contacto por email</button>
           <button class="filter-pill sample-prompt-btn" data-text="Para coordinar las fechas de entrega escriban al wsp 11-4321-9876">Teléfono / WhatsApp</button>
-          <button class="filter-pill sample-prompt-btn" data-text="El parcial fue excesivamente largo y no alcanzó el tiempo estipulado.">Queja constructiva</button>
+          <button class="filter-pill sample-prompt-btn" data-text="Las clases teóricas se dictan los miércoles en el aula 205 de 18 a 22 hs.">Opinión neutra (informativa)</button>
         </div>
 
         <div class="form-group">
@@ -1191,6 +1210,9 @@ import '../styles/index.css';
     // Update KPI UI
     function updateKpis(kpi) {
       document.getElementById('kpi-total').textContent = kpi.total;
+      document.getElementById('kpi-good').textContent = kpi.good_opinions || 0;
+      document.getElementById('kpi-bad').textContent = kpi.bad_opinions || 0;
+      document.getElementById('kpi-neutral').textContent = kpi.neutral_opinions || 0;
       document.getElementById('kpi-per').textContent = kpi.with_person_name;
       document.getElementById('kpi-chairs').textContent = kpi.with_chair_reference;
       document.getElementById('kpi-insults').textContent = kpi.with_insults;
@@ -1200,6 +1222,9 @@ import '../styles/index.css';
       document.getElementById('kpi-toxicity').textContent = `${kpi.avg_toxicity} / 5`;
 
       document.getElementById('filter-cnt-all').textContent = kpi.total;
+      document.getElementById('filter-cnt-good').textContent = kpi.good_opinions || 0;
+      document.getElementById('filter-cnt-bad').textContent = kpi.bad_opinions || 0;
+      document.getElementById('filter-cnt-neutral').textContent = kpi.neutral_opinions || 0;
       document.getElementById('filter-cnt-per').textContent = kpi.with_person_name;
       document.getElementById('filter-cnt-chair').textContent = kpi.with_chair_reference;
       document.getElementById('filter-cnt-insult').textContent = kpi.with_insults;
@@ -1214,6 +1239,9 @@ import '../styles/index.css';
       const q = searchInput.value.toLowerCase().trim();
       const filtered = rows.filter(r => {
         // Filter by Tab/Category
+        if (currentFilter === 'good' && r.jev.opinion_sentiment !== 'buena') return false;
+        if (currentFilter === 'bad' && r.jev.opinion_sentiment !== 'mala') return false;
+        if (currentFilter === 'neutral' && r.jev.opinion_sentiment !== 'neutra') return false;
         if (currentFilter === 'per' && !r.jev.has_person_name) return false;
         if (currentFilter === 'chair' && !r.jev.has_chair_reference) return false;
         if (currentFilter === 'insult' && !r.jev.has_insult) return false;
@@ -1251,6 +1279,11 @@ import '../styles/index.css';
             </td>
             <td>
               <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="margin-bottom: 2px;">
+                  <span class="sentiment-badge sentiment-${jev.opinion_sentiment || 'neutra'}">
+                    ● Opinión ${jev.opinion_sentiment || 'neutra'}
+                  </span>
+                </div>
                 <span class="badge-pill ${jev.has_person_name ? 'true' : 'false'}">
                   PER: ${(jev.prob_person_name * 100).toFixed(0)}%
                 </span>
@@ -1363,6 +1396,13 @@ import '../styles/index.css';
 
         const jev = data.jev;
         singleMetricsChips.innerHTML = `
+          <div class="kpi-card" style="padding: 10px 14px; min-width: 150px; border-color: ${jev.opinion_sentiment === 'buena' ? 'rgba(16, 185, 129, 0.45)' : (jev.opinion_sentiment === 'mala' ? 'rgba(249, 115, 22, 0.45)' : 'rgba(148, 163, 184, 0.4)')};">
+            <div class="kpi-label">Opinión / Sentimiento</div>
+            <div class="kpi-value" style="font-size: 1.2rem; text-transform: capitalize; color: ${jev.opinion_sentiment === 'buena' ? '#6ee7b7' : (jev.opinion_sentiment === 'mala' ? '#fdba74' : '#cbd5e1')};">
+              ● ${jev.opinion_sentiment || 'neutra'}
+            </div>
+            <div class="kpi-sub">${jev.opinion_sentiment === 'mala' ? (jev.has_insult ? 'Opinión mala CON insulto' : 'Opinión mala (sin insultos)') : (jev.opinion_sentiment === 'buena' ? 'Opinión positiva' : 'Opinión neutral')}</div>
+          </div>
           <div class="kpi-card" style="padding: 10px 14px; min-width: 140px;">
             <div class="kpi-label">Persona (PER)</div>
             <div class="kpi-value" style="font-size: 1.2rem;">${(jev.prob_person_name * 100).toFixed(0)}%</div>
